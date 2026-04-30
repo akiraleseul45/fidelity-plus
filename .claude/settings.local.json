@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(npx --yes create-expo-app@latest app --template blank-typescript --no-install)",
+      "Bash(npm install *)",
+      "Bash(npx expo *)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8081)",
+      "Bash(cmd //c start chrome http://localhost:8081)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('SMTP_USER:', process.env.SMTP_USER\\); console.log\\('SMTP_PASS set:', !!process.env.SMTP_PASS\\);\")",
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s -X POST http://localhost:3000/api/pro/signup -H \"Content-Type: application/json\" -d \"{\\\\\"siret\\\\\":\\\\\"123456789\\\\\",\\\\\"ownerName\\\\\":\\\\\"Test Domaine\\\\\",\\\\\"companyName\\\\\":\\\\\"Test Cafe\\\\\",\\\\\"email\\\\\":\\\\\"fidelity.plus45@gmail.com\\\\\"}\")",
+      "Bash(curl -s http://localhost:3000/api/pro/restaurants)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(curl -s -X POST http://localhost:3000/api/pro/login -H \"Content-Type: application/json\" -d \"{\\\\\"code\\\\\":\\\\\"2J5EZHV7\\\\\"}\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /F /PID 15408)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 15408\")",
+      "PowerShell(Stop-Process -Id 15408 -Force)",
+      "PowerShell(netstat -ano)",
+      "PowerShell($pid_to_kill = \\(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -First 1\\).OwningProcess; if \\($pid_to_kill\\) { Stop-Process -Id $pid_to_kill -Force; \"Killed $pid_to_kill\" } else { \"No process on 3000\" })",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/signup -H \"Content-Type: application/json\" -d \"{\\\\\"pseudonym\\\\\":\\\\\"x\\\\\",\\\\\"phone\\\\\":\\\\\"abc\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/signup -H \"Content-Type: application/json\" -d \"{\\\\\"pseudonym\\\\\":\\\\\"Issa\\\\\",\\\\\"phone\\\\\":\\\\\"123\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/verify -H \"Content-Type: application/json\" -d \"{\\\\\"phone\\\\\":\\\\\"+33612345678\\\\\",\\\\\"code\\\\\":\\\\\"12345\\\\\"}\")",
+      "Bash(curl -s -X POST \"https://api.smspartner.fr/v1/send\" -H \"Content-Type: application/json\" -d \"{\\\\\"apiKey\\\\\":\\\\\"1ae0a70a98388e39ca6e5b0f682f9c79204c0418\\\\\",\\\\\"phoneNumbers\\\\\":\\\\\"+33612345678\\\\\",\\\\\"message\\\\\":\\\\\"Test\\\\\"}\")",
+      "Bash(curl -s -X POST \"https://api.smspartner.fr/v1/send\" -H \"Content-Type: application/json\" -d \"{\\\\\"apiKey\\\\\":\\\\\"1ae0a70a98388e39ca6e5b0f682f9c79204c0418\\\\\",\\\\\"phoneNumbers\\\\\":\\\\\"+33612345678\\\\\",\\\\\"message\\\\\":\\\\\"Test\\\\\",\\\\\"sender\\\\\":\\\\\"SMSPartner\\\\\"}\")",
+      "Bash(curl -s -X POST \"https://api.smspartner.fr/v1/send\" -H \"Content-Type: application/json\" -d \"{\\\\\"apiKey\\\\\":\\\\\"1ae0a70a98388e39ca6e5b0f682f9c79204c0418\\\\\",\\\\\"phoneNumbers\\\\\":\\\\\"+33612345678\\\\\",\\\\\"message\\\\\":\\\\\"Test\\\\\",\\\\\"sender\\\\\":\\\\\"36180\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/signup -H \"Content-Type: application/json\" -d \"{\\\\\"pseudonym\\\\\":\\\\\"Issa\\\\\",\\\\\"phone\\\\\":\\\\\"06 12 34 56 78\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/verify -H \"Content-Type: application/json\" -d \"{\\\\\"phone\\\\\":\\\\\"+33612345678\\\\\",\\\\\"code\\\\\":\\\\\"00000\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/verify -H \"Content-Type: application/json\" -d \"{\\\\\"phone\\\\\":\\\\\"+33612345678\\\\\",\\\\\"code\\\\\":\\\\\"23342\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/login -H \"Content-Type: application/json\" -d \"{\\\\\"code\\\\\":\\\\\"23342\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/signup -H \"Content-Type: application/json\" -d \"{\\\\\"pseudonym\\\\\":\\\\\"Léo\\\\\",\\\\\"phone\\\\\":\\\\\"06 11 22 33 44\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/client/signup -H \"Content-Type: application/json\" -d \"{\\\\\"pseudonym\\\\\":\\\\\"TomTom\\\\\"}\")",
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/pro/signup -H \"Content-Type: application/json\" -d \"{\\\\\"ownerName\\\\\":\\\\\"Issa\\\\\",\\\\\"companyName\\\\\":\\\\\"Café d Issa\\\\\",\\\\\"address\\\\\":\\\\\"5 rue de Bourgogne, 45000 Orléans\\\\\",\\\\\"email\\\\\":\\\\\"fidelity.plus45@gmail.com\\\\\",\\\\\"phoneFixed\\\\\":\\\\\"02 38 99 88 77\\\\\",\\\\\"phoneMobile\\\\\":\\\\\"06 11 22 33 44\\\\\",\\\\\"imageUrl\\\\\":\\\\\"https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800\\\\\"}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/pro/signup -H \"Content-Type: application/json\" -d \"{\\\\\"ownerName\\\\\":\\\\\"TestNouveau\\\\\",\\\\\"companyName\\\\\":\\\\\"Test Cafe Orleans\\\\\",\\\\\"address\\\\\":\\\\\"5 place du Martroi, 45000 Orléans\\\\\",\\\\\"email\\\\\":\\\\\"test-orleans-`date +%s`@example.com\\\\\",\\\\\"phoneFixed\\\\\":\\\\\"02 38 11 22 33\\\\\",\\\\\"phoneMobile\\\\\":\\\\\"06 99 88 77 66\\\\\"}\")"
+    ]
+  }
+}
