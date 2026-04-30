@@ -12,15 +12,19 @@ if (!SMTP_USER || !SMTP_PASS) {
 }
 
 // Gmail SMTP transport using app password.
+// We explicitly set host/port/secure rather than `service: 'gmail'` because
+// some cloud hosts (Render, Fly, etc.) handle 465/SSL poorly but accept
+// 587/STARTTLS just fine.
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // STARTTLS upgrade
+  requireTLS: true,
   auth: {
     user: SMTP_USER,
     // Gmail accepts app passwords with or without spaces; strip just in case.
     pass: SMTP_PASS ? SMTP_PASS.replace(/\s+/g, '') : undefined,
   },
-  // Pool + sane timeouts so a transient network glitch doesn't abort the
-  // whole signup. Nodemailer will reuse a connection across sends.
   pool: true,
   maxConnections: 3,
   connectionTimeout: 15000,
