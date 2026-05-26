@@ -1,18 +1,22 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ClientRestaurantDetail'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ClientPartnerDetail'>;
 
-export const ClientRestaurantDetailScreen: React.FC<Props> = ({ route }) => {
-  const { restaurants, client, getPoints } = useApp();
-  const resto = restaurants.find((r) => r.id === route.params.restaurantId);
+export const ClientPartnerDetailScreen: React.FC<Props> = ({ route }) => {
+  const { partners, clientLoyalty, refreshClientLoyalty } = useApp();
+  const partner = partners.find((p) => p.id === route.params.partnerId);
 
-  if (!resto) {
+  useEffect(() => {
+    refreshClientLoyalty();
+  }, [refreshClientLoyalty]);
+
+  if (!partner) {
     return (
       <Screen>
         <Text style={{ color: colors.text }}>Partenaire introuvable.</Text>
@@ -20,9 +24,9 @@ export const ClientRestaurantDetailScreen: React.FC<Props> = ({ route }) => {
     );
   }
 
-  const points = client ? getPoints(client.id, resto.id) : 0;
-  const remaining = Math.max(0, resto.rewardThreshold - points);
-  const pct = Math.min(1, points / resto.rewardThreshold);
+  const points = clientLoyalty.find((l) => l.partnerId === partner.id)?.points ?? 0;
+  const remaining = Math.max(0, partner.rewardThreshold - points);
+  const pct = Math.min(1, points / partner.rewardThreshold);
 
   const callPhone = (phone: string) => {
     Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`).catch(() => {});
@@ -31,33 +35,39 @@ export const ClientRestaurantDetailScreen: React.FC<Props> = ({ route }) => {
   return (
     <Screen padded={false}>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-        <Image source={{ uri: resto.imageUrl }} style={styles.hero} />
+        {partner.imageUrl ? (
+          <Image source={{ uri: partner.imageUrl }} style={styles.hero} />
+        ) : (
+          <View style={[styles.hero, styles.heroPlaceholder]}>
+            <Text style={styles.heroPlaceholderText}>{partner.companyName.charAt(0)}</Text>
+          </View>
+        )}
         <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
-          <Text style={styles.name}>{resto.name}</Text>
+          <Text style={styles.name}>{partner.companyName}</Text>
 
-          {resto.ownerName ? (
+          {partner.ownerName ? (
             <View style={styles.infoRow}>
               <Text style={styles.infoIcon}>👤</Text>
-              <Text style={styles.infoText}>{resto.ownerName}</Text>
+              <Text style={styles.infoText}>{partner.ownerName}</Text>
             </View>
           ) : null}
 
           <View style={styles.infoRow}>
             <Text style={styles.infoIcon}>📍</Text>
-            <Text style={styles.infoText}>{resto.address || 'Adresse non renseignée'}</Text>
+            <Text style={styles.infoText}>{partner.address || 'Adresse non renseignée'}</Text>
           </View>
 
-          {resto.phoneFixed ? (
-            <Pressable onPress={() => callPhone(resto.phoneFixed!)} style={styles.infoRow}>
+          {partner.phoneFixed ? (
+            <Pressable onPress={() => callPhone(partner.phoneFixed)} style={styles.infoRow}>
               <Text style={styles.infoIcon}>☎️</Text>
-              <Text style={[styles.infoText, styles.link]}>{resto.phoneFixed}</Text>
+              <Text style={[styles.infoText, styles.link]}>{partner.phoneFixed}</Text>
             </Pressable>
           ) : null}
 
-          {resto.phoneMobile ? (
-            <Pressable onPress={() => callPhone(resto.phoneMobile!)} style={styles.infoRow}>
+          {partner.phoneMobile ? (
+            <Pressable onPress={() => callPhone(partner.phoneMobile)} style={styles.infoRow}>
               <Text style={styles.infoIcon}>📱</Text>
-              <Text style={[styles.infoText, styles.link]}>{resto.phoneMobile}</Text>
+              <Text style={[styles.infoText, styles.link]}>{partner.phoneMobile}</Text>
             </Pressable>
           ) : null}
 
@@ -71,9 +81,9 @@ export const ClientRestaurantDetailScreen: React.FC<Props> = ({ route }) => {
             </View>
             <Text style={styles.rewardInfo}>
               Récompense :{' '}
-              {resto.rewardType === 'free_meal'
-                ? 'repas gratuit'
-                : `−${resto.rewardValue ?? 10}% sur l'addition`}
+              {partner.rewardType === 'free_meal'
+                ? 'gratuit seulement'
+                : `−${partner.rewardValue ?? 10}% sur la prestation`}
             </Text>
           </View>
         </View>
@@ -84,6 +94,12 @@ export const ClientRestaurantDetailScreen: React.FC<Props> = ({ route }) => {
 
 const styles = StyleSheet.create({
   hero: { width: '100%', height: 220, backgroundColor: colors.surface },
+  heroPlaceholder: {
+    backgroundColor: colors.heroBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroPlaceholderText: { fontSize: 80, fontWeight: '800', color: colors.heroText },
   name: { ...typography.h1, color: colors.text, marginTop: spacing.md },
   infoRow: {
     flexDirection: 'row',

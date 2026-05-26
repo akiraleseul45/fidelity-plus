@@ -52,7 +52,7 @@ function proEmailTemplate({ companyName, ownerName, code }) {
 
               <div style="margin-top:24px;padding:16px;background:#EAF4FF;border-radius:12px;">
                 <p style="margin:0;font-size:13px;color:#0B4A8C;line-height:1.5;">
-                  <strong>🔒 Garde ce code confidentiel.</strong> Il te permet d'accéder à ton tableau de bord et de scanner les clients.
+                  <strong>🔒 Garde ce code confidentiel.</strong> Il te permet d'accéder à ton tableau de bord, de gérer ta fidélité et de scanner tes clients.
                 </p>
               </div>
             </td>

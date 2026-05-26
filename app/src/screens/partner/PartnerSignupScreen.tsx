@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,10 +17,10 @@ import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoSignup'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerSignup'>;
 
-export const RestoSignupScreen: React.FC<Props> = ({ navigation }) => {
-  const { submitRestoSignup } = useApp();
+export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
+  const { signupPartner } = useApp();
   const [ownerName, setOwnerName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [address, setAddress] = useState('');
@@ -28,17 +29,19 @@ export const RestoSignupScreen: React.FC<Props> = ({ navigation }) => {
   const [phoneMobile, setPhoneMobile] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [consent, setConsent] = useState(false);
 
   const valid =
     ownerName.trim().length > 1 &&
     companyName.trim().length > 1 &&
     address.trim().length > 4 &&
-    /.+@.+\..+/.test(email);
+    /.+@.+\..+/.test(email) &&
+    consent;
 
   const submit = async () => {
     if (!valid || loading) return;
     setLoading(true);
-    const result = await submitRestoSignup({
+    const result = await signupPartner({
       ownerName: ownerName.trim(),
       companyName: companyName.trim(),
       address: address.trim(),
@@ -50,11 +53,20 @@ export const RestoSignupScreen: React.FC<Props> = ({ navigation }) => {
     });
     setLoading(false);
 
-    navigation.replace('RestoSignupSuccess', {
-      code: result.code,
+    if (!result.ok) {
+      navigation.replace('PartnerSignupSuccess', {
+        code: '—',
+        email: email.trim(),
+        emailSent: false,
+        apiError: result.error,
+      });
+      return;
+    }
+
+    navigation.replace('PartnerSignupSuccess', {
+      code: result.loginCode,
       email: email.trim(),
-      emailSent: result.emailSent,
-      apiError: result.error,
+      emailSent: true,
     });
   };
 
@@ -116,8 +128,22 @@ export const RestoSignupScreen: React.FC<Props> = ({ navigation }) => {
             onChange={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
-            placeholder="contact@monresto.fr"
+            placeholder="contact@monpro.fr"
           />
+
+          <Pressable
+            onPress={() => setConsent((v) => !v)}
+            style={({ pressed }) => [styles.consentRow, pressed && { opacity: 0.8 }]}
+            hitSlop={6}
+          >
+            <View style={[styles.checkbox, consent && styles.checkboxOn]}>
+              {consent ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.consentText}>
+              J'accepte que mes données soient utilisées pour gérer mon compte professionnel
+              (consentement RGPD requis).
+            </Text>
+          </Pressable>
         </ScrollView>
         <View style={{ paddingBottom: spacing.lg }}>
           <Button
@@ -184,4 +210,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
+  consentRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  consentText: { ...typography.small, color: colors.text, flex: 1, lineHeight: 18 },
 });

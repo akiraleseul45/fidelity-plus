@@ -1,12 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Restaurant } from '../types';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
+export type MapPartner = {
+  id: string;
+  companyName: string;
+  ownerName?: string | null;
+  address?: string | null;
+  lat: number | null;
+  lng: number | null;
+  phoneFixed?: string | null;
+  phoneMobile?: string | null;
+};
+
+type UserLocation = { lat: number; lng: number; accuracy?: number };
+
 type Props = {
-  restaurants: Restaurant[];
+  partners: MapPartner[];
   onPressMarker?: (id: string) => void;
   height?: number;
+  /** If provided, a blue dot is shown at the user's location and the map
+   *  is centered on it. */
+  userLocation?: UserLocation | null;
 };
 
 const ORLEANS: [number, number] = [47.9027, 1.909];
@@ -51,10 +66,17 @@ function loadLeaflet(): Promise<any> {
   return leafletPromise;
 }
 
-export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height = 240 }) => {
+export const PartnerMap: React.FC<Props> = ({
+  partners,
+  onPressMarker,
+  height = 240,
+  userLocation = null,
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const userMarkerRef = useRef<any>(null);
+  const userAccuracyRef = useRef<any>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // Initialise the map once the container is mounted.
@@ -66,7 +88,6 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
         if (disposed) return;
         const el = containerRef.current;
         if (!el) {
-          // Container not yet rendered. Retry next tick.
           requestAnimationFrame(() => setStatus((s) => (s === 'loading' ? 'loading' : s)));
           return;
         }
@@ -74,8 +95,14 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
           mapRef.current = L.map(el, {
             center: ORLEANS,
             zoom: 13,
-            scrollWheelZoom: false,
             zoomControl: true,
+            // --- Interactions ---
+            scrollWheelZoom: true,    // molette PC → zoom in/out
+            touchZoom: true,          // pinch sur smartphone (2 doigts)
+            doubleClickZoom: true,    // double-tap pour zoomer
+            dragging: true,           // pan avec souris / doigt
+            tap: true,                // gestes tactiles
+            bounceAtZoomLimits: true,
           });
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap',
@@ -94,17 +121,16 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
     };
   }, []);
 
-  // Refresh markers whenever the restaurant list changes (and map is ready).
+  // Refresh partner markers + user marker + recenter.
   useEffect(() => {
     if (status !== 'ready' || !mapRef.current) return;
     const w = window as any;
     const L = w.L;
     if (!L) return;
 
+    // ---- Partner markers (clear & rebuild) ----
     markersRef.current.forEach((m) => mapRef.current.removeLayer(m));
     markersRef.current = [];
-
-    if (restaurants.length === 0) return;
 
     const pinIcon = L.divIcon({
       className: 'fp-pin',
@@ -126,7 +152,7 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
       popupAnchor: [0, -38],
     });
 
-    restaurants.forEach((r) => {
+    partners.forEach((r) => {
       if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
       const ownerLine = r.ownerName
         ? `<br/><span style="font-size:12px;color:#0B1220;font-weight:600">${escapeHtml(
@@ -138,14 +164,14 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
           ? `<br/><span style="font-size:12px;color:#5B6472">${
               r.phoneMobile
                 ? `📱 ${escapeHtml(r.phoneMobile)}`
-                : `☎️ ${escapeHtml(r.phoneFixed!)}`
+                : `☎️ ${escapeHtml(r.phoneFixed || '')}`
             }</span>`
           : '';
-      const marker = L.marker([r.lat, r.lng], { icon: pinIcon })
+      const marker = L.marker([r.lat as number, r.lng as number], { icon: pinIcon })
         .addTo(mapRef.current)
         .bindPopup(
           `<div style="font-family:-apple-system,sans-serif;min-width:180px"><strong style="font-size:14px;color:#0B1220">${escapeHtml(
-            r.name,
+            r.companyName,
           )}</strong>${ownerLine}${
             r.address
               ? `<br/><span style="font-size:12px;color:#5B6472">${escapeHtml(r.address)}</span>`
@@ -156,15 +182,84 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
       markersRef.current.push(marker);
     });
 
-    if (markersRef.current.length > 0) {
-      try {
-        const group = L.featureGroup(markersRef.current);
-        mapRef.current.fitBounds(group.getBounds().pad(0.3), { maxZoom: 15 });
-      } catch (err) {
-        console.warn('[PartnerMap] fitBounds failed:', err);
+    // ---- User location marker (pulsing blue dot) ----
+    if (userMarkerRef.current) {
+      mapRef.current.removeLayer(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+    if (userAccuracyRef.current) {
+      mapRef.current.removeLayer(userAccuracyRef.current);
+      userAccuracyRef.current = null;
+    }
+
+    if (userLocation) {
+      // CSS keyframes injected once for the pulse animation.
+      if (typeof document !== 'undefined' && !document.getElementById('fp-pulse-style')) {
+        const style = document.createElement('style');
+        style.id = 'fp-pulse-style';
+        style.innerHTML = `
+          @keyframes fp-pulse {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            70% { transform: scale(2.5); opacity: 0; }
+            100% { transform: scale(0.5); opacity: 0; }
+          }`;
+        document.head.appendChild(style);
+      }
+
+      const userIcon = L.divIcon({
+        className: 'fp-user-dot',
+        html: `
+          <div style="position:relative;width:22px;height:22px;">
+            <div style="position:absolute;top:0;left:0;width:22px;height:22px;border-radius:50%;background:#1E90FF;opacity:0.3;animation:fp-pulse 1.6s ease-out infinite;"></div>
+            <div style="position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#1E90FF;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.25);"></div>
+          </div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+        icon: userIcon,
+        zIndexOffset: 1000,
+      })
+        .addTo(mapRef.current)
+        .bindPopup(
+          '<div style="font-family:-apple-system,sans-serif;font-size:13px;color:#0B1220"><strong>📍 Vous êtes ici</strong></div>',
+        );
+
+      // Soft accuracy halo if provided.
+      if (userLocation.accuracy && userLocation.accuracy > 0) {
+        userAccuracyRef.current = L.circle([userLocation.lat, userLocation.lng], {
+          radius: Math.min(userLocation.accuracy, 500),
+          color: '#1E90FF',
+          fillColor: '#1E90FF',
+          fillOpacity: 0.08,
+          weight: 1,
+          opacity: 0.4,
+        }).addTo(mapRef.current);
       }
     }
-  }, [restaurants, onPressMarker, status]);
+
+    // ---- Recenter / fitBounds ----
+    try {
+      if (userLocation) {
+        // Center on user, zoom to show partners around them too.
+        if (markersRef.current.length > 0) {
+          const all = L.featureGroup([
+            ...markersRef.current,
+            L.marker([userLocation.lat, userLocation.lng]),
+          ]);
+          mapRef.current.fitBounds(all.getBounds().pad(0.4), { maxZoom: 15 });
+        } else {
+          mapRef.current.setView([userLocation.lat, userLocation.lng], 14);
+        }
+      } else if (markersRef.current.length > 0) {
+        const group = L.featureGroup(markersRef.current);
+        mapRef.current.fitBounds(group.getBounds().pad(0.3), { maxZoom: 15 });
+      }
+    } catch (err) {
+      console.warn('[PartnerMap] fitBounds failed:', err);
+    }
+  }, [partners, onPressMarker, status, userLocation]);
 
   // Cleanup on unmount.
   useEffect(() => {
@@ -184,7 +279,17 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
     <View style={[styles.wrap, { height }]}>
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '100%', borderRadius: radius.md }}
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: radius.md,
+          // touch-action: "none" → la carte capture entièrement les gestes
+          // (pinch, pan) au lieu de les laisser scroller la page parente.
+          touchAction: 'none',
+          // overscrollBehavior empêche le "bounce" iOS quand on atteint le
+          // bord de la carte.
+          overscrollBehavior: 'contain',
+        } as React.CSSProperties}
       />
       {status === 'loading' ? (
         <View style={styles.overlay} pointerEvents="none">
@@ -196,8 +301,8 @@ export const PartnerMap: React.FC<Props> = ({ restaurants, onPressMarker, height
         <View style={styles.overlay} pointerEvents="none">
           <Text style={styles.overlayText}>Carte indisponible</Text>
           <Text style={styles.overlaySub}>
-            {restaurants.length} partenaire{restaurants.length > 1 ? 's' : ''} référencé
-            {restaurants.length > 1 ? 's' : ''}
+            {partners.length} partenaire{partners.length > 1 ? 's' : ''} référencé
+            {partners.length > 1 ? 's' : ''}
           </Text>
         </View>
       ) : null}

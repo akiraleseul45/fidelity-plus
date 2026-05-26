@@ -1,46 +1,15 @@
-export type Client = {
-  id: string;
-  pseudonym: string;
-  email?: string;
-  loginCode: string;
-};
+/**
+ * Lightweight UI-side types. The authoritative model lives in the backend
+ * (see `backend/src/db/schema.sql`). These types only describe what the
+ * UI consumes from API responses — they should stay narrow.
+ */
 
-export type Restaurant = {
-  id: string;
-  name: string;
-  ownerName?: string;
-  address: string;
-  lat: number;
-  lng: number;
-  imageUrl: string;
-  phoneFixed?: string;
-  phoneMobile?: string;
-  loginCode: string;
-  rewardThreshold: number;
-  rewardType: 'free_meal' | 'discount';
-  rewardValue?: number;
-};
+export type RewardType = 'free_meal' | 'discount';
 
-export type LoyaltyEntry = {
-  clientId: string;
-  restaurantId: string;
-  pseudonym: string;
+export type PartnerStatus = 'pending' | 'approved' | 'suspended';
+
+export type LoyaltyView = {
+  partnerId: string;
   points: number;
+  lastScanAt: number | null;
 };
-
-export type SignupRequest = {
-  id: string;
-  ownerName: string;
-  companyName: string;
-  address: string;
-  lat?: number;
-  lng?: number;
-  phoneFixed?: string;
-  phoneMobile?: string;
-  email: string;
-  imageUrl?: string;
-  createdAt: number;
-  status: 'pending' | 'approved';
-};
-
-export type RewardType = Restaurant['rewardType'];

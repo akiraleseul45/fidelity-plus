@@ -1,24 +1,26 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
-import { RewardType } from '../../types';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoSettings'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerSettings'>;
 
-export const RestoSettingsScreen: React.FC<Props> = ({ navigation }) => {
-  const { currentRestoId, restaurants, updateRestoSettings } = useApp();
-  const resto = restaurants.find((r) => r.id === currentRestoId);
+type RewardType = 'free_meal' | 'discount';
 
-  const [threshold, setThreshold] = useState(String(resto?.rewardThreshold ?? 10));
-  const [type, setType] = useState<RewardType>(resto?.rewardType ?? 'free_meal');
-  const [value, setValue] = useState(String(resto?.rewardValue ?? 10));
+export const PartnerSettingsScreen: React.FC<Props> = ({ navigation }) => {
+  const { user, updatePartnerSettings } = useApp();
+  const partner = user?.role === 'partner' ? user : null;
 
-  if (!resto) {
+  const [threshold, setThreshold] = useState(String(partner?.rewardThreshold ?? 10));
+  const [type, setType] = useState<RewardType>(partner?.rewardType ?? 'free_meal');
+  const [value, setValue] = useState(String(partner?.rewardValue ?? 10));
+  const [saving, setSaving] = useState(false);
+
+  if (!partner) {
     return (
       <Screen>
         <Text style={{ color: colors.text }}>Session expirée.</Text>
@@ -26,21 +28,32 @@ export const RestoSettingsScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
+  const showAlert = (title: string, msg: string) => {
+    if (Platform.OS === 'web') window.alert(`${title}\n${msg}`);
+    else Alert.alert(title, msg);
+  };
+
   const save = async () => {
     const n = parseInt(threshold, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      Alert.alert('Seuil invalide', 'Entre un nombre de points positif.');
-      return;
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) {
+      return showAlert('Seuil invalide', 'Entre un nombre de points entre 1 et 1000.');
     }
     const v = type === 'discount' ? parseInt(value, 10) : undefined;
     if (type === 'discount' && (!Number.isFinite(v!) || v! <= 0 || v! > 100)) {
-      Alert.alert('Réduction invalide', 'Entre un pourcentage entre 1 et 100.');
-      return;
+      return showAlert('Réduction invalide', 'Entre un pourcentage entre 1 et 100.');
     }
-    await updateRestoSettings(resto.id, { rewardThreshold: n, rewardType: type, rewardValue: v });
-    Alert.alert('Sauvegardé', 'Les paramètres ont été mis à jour.', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    setSaving(true);
+    const res = await updatePartnerSettings({
+      rewardThreshold: n,
+      rewardType: type,
+      rewardValue: v,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      return showAlert('Erreur', res.error);
+    }
+    showAlert('Sauvegardé', 'Les paramètres ont été mis à jour.');
+    navigation.goBack();
   };
 
   return (
@@ -59,7 +72,7 @@ export const RestoSettingsScreen: React.FC<Props> = ({ navigation }) => {
         <View style={{ gap: 6 }}>
           <Text style={styles.label}>Type de récompense</Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Chip label="Repas gratuit" active={type === 'free_meal'} onPress={() => setType('free_meal')} />
+            <Chip label="Gratuit seulement" active={type === 'free_meal'} onPress={() => setType('free_meal')} />
             <Chip label="Réduction %" active={type === 'discount'} onPress={() => setType('discount')} />
           </View>
         </View>
@@ -78,7 +91,7 @@ export const RestoSettingsScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       <View style={{ paddingBottom: spacing.lg }}>
-        <Button title="Sauvegarder" onPress={save} />
+        <Button title="Sauvegarder" onPress={save} loading={saving} disabled={saving} />
       </View>
     </Screen>
   );

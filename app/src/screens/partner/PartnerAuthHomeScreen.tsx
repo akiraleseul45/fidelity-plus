@@ -6,9 +6,9 @@ import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { colors, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoAuthHome'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerAuthHome'>;
 
-export const RestoAuthHomeScreen: React.FC<Props> = ({ navigation }) => {
+export const PartnerAuthHomeScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <Screen>
       <View style={styles.top}>
@@ -16,11 +16,11 @@ export const RestoAuthHomeScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={styles.sub}>Connecte-toi ou crée un compte pour ton établissement.</Text>
       </View>
       <View style={{ gap: spacing.md, paddingBottom: spacing.lg }}>
-        <Button title="J'ai un code" onPress={() => navigation.navigate('RestoLogin')} />
+        <Button title="J'ai un code" onPress={() => navigation.navigate('PartnerLogin')} />
         <Button
           title="S'inscrire"
           variant="secondary"
-          onPress={() => navigation.navigate('RestoSignup')}
+          onPress={() => navigation.navigate('PartnerSignup')}
         />
       </View>
     </Screen>

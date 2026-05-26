@@ -7,10 +7,10 @@ import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoLogin'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerLogin'>;
 
-export const RestoLoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { loginResto } = useApp();
+export const PartnerLoginScreen: React.FC<Props> = ({ navigation }) => {
+  const { loginPartner } = useApp();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,17 +18,16 @@ export const RestoLoginScreen: React.FC<Props> = ({ navigation }) => {
     if (loading) return;
     setLoading(true);
     try {
-      const resto = await loginResto(code);
-      if (!resto) {
+      const res = await loginPartner(code);
+      if (!res.ok) {
         if (Platform.OS === 'web') {
-          // eslint-disable-next-line no-alert
-          window.alert('Code invalide. Vérifie le code reçu par email.');
+          window.alert(res.error);
         } else {
-          Alert.alert('Code invalide', 'Vérifie le code reçu par email.');
+          Alert.alert('Connexion impossible', res.error);
         }
         return;
       }
-      navigation.reset({ index: 0, routes: [{ name: 'RestoScanner' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'PartnerScanner' }] });
     } finally {
       setLoading(false);
     }
@@ -51,7 +50,7 @@ export const RestoLoginScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.input}
             onSubmitEditing={submit}
           />
-          <Text style={styles.hint}>Astuce démo : DEMO1234 ou KARIM777</Text>
+          <Text style={styles.hint}>Code reçu par email lors de la validation.</Text>
         </View>
         <View style={{ paddingBottom: spacing.lg }}>
           <Button title="Se connecter" onPress={submit} disabled={!code.trim() || loading} loading={loading} />

@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -20,19 +21,79 @@ import { colors, radius, spacing, typography } from '../../theme/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'ClientQR'>;
 
 /**
- * Client home: shows the universal QR code that works at every partner. The
- * client lands here right after login or signup. From here they can browse
- * partners, log out, or simply present their QR.
+ * Client home screen.
+ *
+ * The QR shown here is a short-lived SIGNED JWT issued by the backend.
+ * It expires after 60 seconds, so we auto-refresh every 45 seconds while
+ * this screen is visible. This kills any photographed-QR attack.
  */
+const QR_REFRESH_INTERVAL_MS = 45_000;
+
 export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
-  const { client, logoutClient } = useApp();
+  const { user, refreshQr, logout, refreshClientLoyalty, clientLoyalty } = useApp();
   const { width } = useWindowDimensions();
   const qrSize = Math.min(width - spacing.lg * 4, 280);
+  const [qrToken, setQrToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const payload = useMemo(() => {
-    if (!client) return '';
-    return JSON.stringify({ v: 1, clientId: client.id, pseudonym: client.pseudonym });
-  }, [client]);
+  const client = user?.role === 'client' ? user : null;
+
+  useEffect(() => {
+    if (!client) return;
+    let alive = true;
+
+    const fetchQr = async () => {
+      const token = await refreshQr();
+      if (!alive) return;
+      if (token) {
+        setQrToken(token);
+        setError(null);
+      } else {
+        setError('Impossible de générer le QR code. Vérifie ta connexion.');
+      }
+    };
+
+    const startTimer = () => {
+      if (timerRef.current) return;
+      timerRef.current = setInterval(fetchQr, QR_REFRESH_INTERVAL_MS);
+    };
+    const stopTimer = () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+
+    // Pause/resume on tab visibility (web) — saves battery + bandwidth
+    // when the user is on another tab. On focus we immediately fetch a
+    // fresh QR (the previous one may have expired during the pause).
+    const onVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        stopTimer();
+      } else {
+        fetchQr();
+        startTimer();
+      }
+    };
+
+    fetchQr();
+    startTimer();
+    refreshClientLoyalty();
+
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
+    return () => {
+      alive = false;
+      stopTimer();
+      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+    };
+  }, [client, refreshQr, refreshClientLoyalty]);
 
   const onLogout = async () => {
     const confirm =
@@ -47,7 +108,7 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
             ]),
           );
     if (!confirm) return;
-    await logoutClient();
+    await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
@@ -60,6 +121,8 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
       </SafeAreaView>
     );
   }
+
+  const totalPoints = clientLoyalty.reduce((sum, item) => sum + item.points, 0);
 
   return (
     <View style={styles.root}>
@@ -77,26 +140,49 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.tagline}>Ton QR universel — montre-le chez tes partenaires</Text>
 
           <View style={[styles.qrCard, { width: qrSize + spacing.lg * 2 }]}>
-            <QRCode
-              value={payload}
-              size={qrSize}
-              color={colors.text}
-              backgroundColor="#FFFFFF"
-            />
+            {qrToken ? (
+              <QRCode value={qrToken} size={qrSize} color={colors.text} backgroundColor="#FFFFFF" />
+            ) : (
+              <View style={{ width: qrSize, height: qrSize, alignItems: 'center', justifyContent: 'center' }}>
+                {error ? (
+                  <Text style={styles.errorText}>{error}</Text>
+                ) : (
+                  <ActivityIndicator color={colors.primary} size="large" />
+                )}
+              </View>
+            )}
           </View>
 
-          <View style={styles.codePill}>
-            <Text style={styles.codePillLabel}>Ton code</Text>
-            <Text style={styles.codePillValue}>{client.loginCode}</Text>
-          </View>
+          {totalPoints > 0 ? (
+            <View style={styles.codePill}>
+              <Text style={styles.codePillLabel}>Total points cumulés</Text>
+              <Text style={styles.codePillValue}>{totalPoints}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.footer}>
-          <Button
-            title="Voir les partenaires"
-            variant="pillLight"
-            onPress={() => navigation.navigate('ClientRestaurants')}
-          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Button
+              title="Mes récompenses"
+              variant="pillAccent"
+              onPress={() => navigation.navigate('ClientRewards')}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Partenaires"
+              variant="pillLight"
+              onPress={() => navigation.navigate('ClientPartners')}
+              style={{ flex: 1 }}
+            />
+          </View>
+          <Pressable
+            onPress={() => navigation.navigate('Profile')}
+            hitSlop={8}
+            style={styles.profileLink}
+          >
+            <Text style={styles.profileLinkText}>Mon compte</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     </View>
@@ -134,6 +220,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
+  errorText: { ...typography.small, color: colors.danger, textAlign: 'center', padding: spacing.md },
   codePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -154,8 +241,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.onAccent,
     fontWeight: '800',
-    letterSpacing: 4,
   },
-  footer: { paddingBottom: spacing.md },
+  footer: { paddingBottom: spacing.md, gap: spacing.sm },
+  profileLink: { alignSelf: 'center', paddingVertical: spacing.xs },
+  profileLinkText: { ...typography.small, color: colors.heroText, opacity: 0.8, textDecorationLine: 'underline' },
   muted: { ...typography.body, color: colors.textMuted },
 });

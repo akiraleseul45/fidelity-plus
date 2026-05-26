@@ -10,18 +10,20 @@ import { colors, radius, spacing, typography } from '../theme/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { client, currentRestoId } = useApp();
+  const { user } = useApp();
+  const isClient = user?.role === 'client';
+  const isPartner = user?.role === 'partner';
 
   const goLogin = () => {
-    navigation.navigate(client ? 'ClientQR' : 'ClientLogin');
+    navigation.navigate(isClient ? 'ClientQR' : 'ClientLogin');
   };
 
   const goSignup = () => {
-    navigation.navigate(client ? 'ClientQR' : 'ClientSignup');
+    navigation.navigate(isClient ? 'ClientQR' : 'ClientSignup');
   };
 
-  const goResto = () => {
-    navigation.navigate(currentRestoId ? 'RestoScanner' : 'RestoAuthHome');
+  const goPartner = () => {
+    navigation.navigate(isPartner ? 'PartnerScanner' : 'PartnerAuthHome');
   };
 
   return (
@@ -30,7 +32,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.topBar}>
           <Pressable
-            onPress={goResto}
+            onPress={goPartner}
             hitSlop={12}
             style={({ pressed }) => [styles.restoBtn, pressed && { opacity: 0.7 }]}
           >

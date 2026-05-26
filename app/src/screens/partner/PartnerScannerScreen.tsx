@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView } from 'expo-camera';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { CameraPermissionGate } from '../../components/CameraPermissionGate';
 import { Screen } from '../../components/Screen';
@@ -9,51 +9,70 @@ import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoScanner'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerScanner'>;
 
 type ScanState =
   | { kind: 'scanning' }
-  | { kind: 'confirm'; clientId: string; pseudonym: string }
-  | { kind: 'done'; pseudonym: string; points: number; reached: boolean };
+  | { kind: 'pending' }
+  | { kind: 'done'; pseudonym: string; points: number; reached: boolean }
+  | { kind: 'error'; message: string };
 
-export const RestoScannerScreen: React.FC<Props> = ({ navigation }) => {
-  const { currentRestoId, restaurants, addPoint, logoutResto } = useApp();
-  const resto = restaurants.find((r) => r.id === currentRestoId) ?? null;
+/**
+ * Scanner screen.
+ *
+ * The QR contains a SIGNED JWT (issued by /api/loyalty/qr to the client).
+ * We extract the raw token string and POST /api/loyalty/scan — the server
+ * verifies signature, expiration, nonce and atomically adds a point.
+ *
+ * There is no more confirmation step: the server side already handles
+ * anti-replay (single-use nonce), so we directly show the outcome.
+ */
+export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
+  const { user, scanQr, logout } = useApp();
+  const partner = user?.role === 'partner' ? user : null;
   const [state, setState] = useState<ScanState>({ kind: 'scanning' });
 
   const handleScan = useCallback(
-    ({ data }: { data: string }) => {
+    async ({ data }: { data: string }) => {
       if (state.kind !== 'scanning') return;
-      try {
-        const parsed = JSON.parse(data);
-        if (!parsed?.clientId || !parsed?.pseudonym) throw new Error('invalid');
-        setState({ kind: 'confirm', clientId: parsed.clientId, pseudonym: parsed.pseudonym });
-      } catch {
-        Alert.alert('QR invalide', 'Ce QR code n\'est pas un client valide.', [
-          { text: 'OK', onPress: () => setState({ kind: 'scanning' }) },
-        ]);
+      setState({ kind: 'pending' });
+
+      // Accept both raw JWT strings AND legacy JSON wrappers (best-effort).
+      let qrToken = (data || '').trim();
+      if (qrToken.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(qrToken);
+          qrToken = parsed.token || parsed.qrToken || qrToken;
+        } catch {
+          /* ignore */
+        }
       }
+
+      const res = await scanQr(qrToken);
+      if (!res.success) {
+        setState({ kind: 'error', message: res.error || 'Scan impossible.' });
+        return;
+      }
+      setState({
+        kind: 'done',
+        pseudonym: res.pseudonym || 'Client',
+        points: res.points ?? 0,
+        reached: !!res.reached,
+      });
     },
-    [state.kind],
+    [state.kind, scanQr],
   );
 
-  const confirm = async () => {
-    if (state.kind !== 'confirm' || !resto) return;
-    const entry = await addPoint(state.clientId, resto.id, state.pseudonym);
-    const reached = entry.points >= resto.rewardThreshold;
-    setState({ kind: 'done', pseudonym: entry.pseudonym, points: entry.points, reached });
-  };
-
-  const logout = async () => {
-    await logoutResto();
+  const onLogout = async () => {
+    await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
-  if (!resto) {
+  if (!partner) {
     return (
       <Screen>
         <Text style={{ color: colors.text }}>Session expirée.</Text>
-        <Button title="Retour" onPress={logout} />
+        <Button title="Retour" onPress={onLogout} />
       </Screen>
     );
   }
@@ -72,8 +91,8 @@ export const RestoScannerScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.topOverlay} pointerEvents="box-none">
           <View style={styles.topBar}>
-            <Text style={styles.restoName}>{resto.name}</Text>
-            <Pressable onPress={logout} hitSlop={12}>
+            <Text style={styles.restoName}>{partner.companyName}</Text>
+            <Pressable onPress={onLogout} hitSlop={12}>
               <Text style={styles.logout}>Déconnexion</Text>
             </Pressable>
           </View>
@@ -87,33 +106,31 @@ export const RestoScannerScreen: React.FC<Props> = ({ navigation }) => {
               <Button
                 title="Tableau de bord"
                 variant="secondary"
-                onPress={() => navigation.navigate('RestoDashboard')}
+                onPress={() => navigation.navigate('PartnerDashboard')}
                 style={{ flex: 1 }}
               />
               <Button
                 title="Fidélité"
                 variant="secondary"
-                onPress={() => navigation.navigate('RestoSettings')}
+                onPress={() => navigation.navigate('PartnerSettings')}
                 style={{ flex: 1 }}
               />
             </View>
+            <Pressable
+              onPress={() => navigation.navigate('Profile')}
+              hitSlop={8}
+              style={{ paddingTop: spacing.sm }}
+            >
+              <Text style={{ color: '#fff', opacity: 0.85, textDecorationLine: 'underline' }}>
+                Mon compte
+              </Text>
+            </Pressable>
           </View>
         )}
 
-        {state.kind === 'confirm' && (
+        {state.kind === 'pending' && (
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Client reconnu</Text>
-            <Text style={styles.sheetName}>{state.pseudonym}</Text>
-            <Text style={styles.sheetQ}>Ajouter 1 point ?</Text>
-            <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.md }}>
-              <Button
-                title="Annuler"
-                variant="secondary"
-                onPress={() => setState({ kind: 'scanning' })}
-                style={{ flex: 1 }}
-              />
-              <Button title="Valider" onPress={confirm} style={{ flex: 1 }} />
-            </View>
+            <Text style={styles.sheetTitle}>Vérification…</Text>
           </View>
         )}
 
@@ -127,6 +144,18 @@ export const RestoScannerScreen: React.FC<Props> = ({ navigation }) => {
             )}
             <Button
               title="Scanner le suivant"
+              onPress={() => setState({ kind: 'scanning' })}
+              style={{ marginTop: spacing.md }}
+            />
+          </View>
+        )}
+
+        {state.kind === 'error' && (
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitleError}>⚠️ Scan refusé</Text>
+            <Text style={styles.sheetQ}>{state.message}</Text>
+            <Button
+              title="Réessayer"
               onPress={() => setState({ kind: 'scanning' })}
               style={{ marginTop: spacing.md }}
             />
@@ -183,6 +212,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
   },
   sheetTitle: { ...typography.h3, color: colors.textMuted },
+  sheetTitleError: { ...typography.h3, color: colors.danger },
   sheetName: { ...typography.h1, color: colors.text, marginTop: 4 },
   sheetQ: { ...typography.body, color: colors.text, marginTop: spacing.md },
   bigPoints: { ...typography.mega, color: colors.primary, lineHeight: 100 },

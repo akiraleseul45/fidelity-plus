@@ -4,3 +4,4 @@ requests.json
 clients.json
 *.log
 .DS_Store
+data/

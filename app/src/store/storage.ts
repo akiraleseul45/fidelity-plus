@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * Thin wrapper over AsyncStorage. All app persistence goes through here.
+ *
+ * Note: since the rewrite to backend-as-source-of-truth, AsyncStorage is
+ * only used for the JWT bundle (see store/api.ts). All entity caches
+ * (clients, partners, loyalty) live server-side.
+ */
+
 export const storage = {
   async get<T>(key: string): Promise<T | null> {
     const raw = await AsyncStorage.getItem(key);
@@ -11,13 +19,16 @@ export const storage = {
   async remove(key: string): Promise<void> {
     await AsyncStorage.removeItem(key);
   },
+  /** One-shot cleanup of legacy v1 keys (run at boot). */
+  async wipeLegacy(): Promise<void> {
+    const legacyKeys = [
+      'fidl.clients',
+      'fidl.currentClientId',
+      'fidl.restaurants',
+      'fidl.loyalty',
+      'fidl.signupRequests',
+      'fidl.currentRestoId', // legacy key kept here for backward-compat wipe
+    ];
+    await Promise.all(legacyKeys.map((k) => AsyncStorage.removeItem(k)));
+  },
 };
-
-export const STORAGE_KEYS = {
-  clients: 'fidl.clients',
-  currentClientId: 'fidl.currentClientId',
-  restaurants: 'fidl.restaurants',
-  loyalty: 'fidl.loyalty',
-  signupRequests: 'fidl.signupRequests',
-  currentRestoId: 'fidl.currentRestoId',
-} as const;

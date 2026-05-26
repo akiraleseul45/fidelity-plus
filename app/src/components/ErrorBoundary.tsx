@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme/theme';
+import { radius, spacing, typography } from '../theme/theme';
 
 type Props = { children: React.ReactNode; fallback?: React.ReactNode };
 type State = { hasError: boolean; message?: string };

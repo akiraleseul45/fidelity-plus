@@ -6,9 +6,9 @@ import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'RestoSignupSuccess'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'PartnerSignupSuccess'>;
 
-export const RestoSignupSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
+export const PartnerSignupSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
   const { code, email, emailSent, apiError } = route.params;
   return (
     <Screen>
@@ -45,7 +45,7 @@ export const RestoSignupSuccessScreen: React.FC<Props> = ({ navigation, route })
         </Text>
       </View>
       <View style={{ paddingBottom: spacing.lg }}>
-        <Button title="Se connecter" onPress={() => navigation.replace('RestoLogin')} />
+        <Button title="Se connecter" onPress={() => navigation.replace('PartnerLogin')} />
       </View>
     </Screen>
   );

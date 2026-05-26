@@ -30,12 +30,12 @@ export const ClientLoginScreen: React.FC<Props> = ({ navigation }) => {
     if (code.length !== 5 || loading) return;
     setLoading(true);
     try {
-      const client = await loginClient(code);
-      if (!client) {
+      const res = await loginClient(code);
+      if (!res.ok) {
         if (Platform.OS === 'web') {
-          window.alert("Code invalide. Vérifie le code noté à l'inscription.");
+          window.alert(res.error);
         } else {
-          Alert.alert('Code invalide', "Vérifie le code noté à l'inscription.");
+          Alert.alert('Connexion impossible', res.error);
         }
         return;
       }

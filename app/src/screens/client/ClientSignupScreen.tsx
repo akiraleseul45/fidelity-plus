@@ -26,8 +26,9 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [consent, setConsent] = useState(false);
   const emailValid = email.trim() === '' || /.+@.+\..+/.test(email);
-  const valid = pseudonym.trim().length >= 2 && emailValid;
+  const valid = pseudonym.trim().length >= 2 && emailValid && consent;
 
   const submit = async () => {
     if (!valid || loading) return;
@@ -39,10 +40,11 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
       setError(res.error);
       return;
     }
+    const u = res.user as { pseudonym: string; email?: string | null };
     navigation.replace('ClientSignupSuccess', {
-      code: res.client.loginCode,
-      pseudonym: res.client.pseudonym,
-      email: res.client.email,
+      code: res.loginCode,
+      pseudonym: u.pseudonym,
+      email: u.email || undefined,
     });
   };
 
@@ -85,9 +87,23 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
             />
           </View>
 
+          <Pressable
+            onPress={() => setConsent((v) => !v)}
+            style={({ pressed }) => [styles.consentRow, pressed && { opacity: 0.8 }]}
+            hitSlop={6}
+          >
+            <View style={[styles.checkbox, consent && styles.checkboxOn]}>
+              {consent ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.consentText}>
+              J'accepte que mes données soient utilisées pour gérer mon compte de fidélité
+              (consentement RGPD requis).
+            </Text>
+          </Pressable>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <View style={{ marginTop: spacing.xl }}>
+          <View style={{ marginTop: spacing.lg }}>
             <Button
               title="Créer mon compte"
               variant="primary"
@@ -174,4 +190,24 @@ const styles = StyleSheet.create({
   footerText: { ...typography.body, color: colors.textMuted },
   footerLink: { ...typography.body, color: colors.primary, fontWeight: '700' },
   error: { ...typography.small, color: colors.primary, textAlign: 'center', marginTop: spacing.md },
+  consentRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  consentText: { ...typography.small, color: colors.text, flex: 1, lineHeight: 18 },
 });

@@ -71,7 +71,7 @@ function adminEmailTemplate({
 
               <div style="margin-top:24px;padding:14px 16px;background:#FFF8E6;border-left:3px solid #FFB02E;border-radius:8px;">
                 <p style="margin:0;font-size:13px;color:#7A5A00;line-height:1.5;">
-                  <strong>Action requise :</strong> Vérifie l'identité du commerçant et l'authenticité de l'adresse avant de valider l'accès.
+                  <strong>Action requise :</strong> Vérifie l'identité du professionnel et l'authenticité de l'adresse avant de valider l'accès.
                 </p>
               </div>
             </td>
