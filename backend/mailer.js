@@ -8,22 +8,32 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || SMTP_USER || 'admin@example.com';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-// Resend free tier delivers from onboarding@resend.dev until a custom
-// domain is verified. Set MAIL_FROM="Fidelity Plus <noreply@your.dom>"
-// after you add + verify your domain in the Resend dashboard.
+// Default FROM: Resend's shared sender until a custom domain is verified.
+// Set MAIL_FROM="Fidelity Plus <noreply@your.dom>" after domain verification.
 const FROM = process.env.MAIL_FROM || 'Fidelity Plus <onboarding@resend.dev>';
 
+// Parse "Name <email@host>" into {name, email}. Brevo wants them split.
+function parseFrom(spec) {
+  const m = /^\s*(?:"?([^"<]+?)"?\s*)?<\s*([^>\s]+)\s*>\s*$/.exec(spec);
+  if (m) return { name: (m[1] || '').trim(), email: m[2].trim() };
+  return { name: '', email: spec.trim() };
+}
+
 // =====================================================================
-// Strategy: prefer Resend (HTTP API — works everywhere, incl. hosts
-// that block outbound SMTP such as Render/Vercel/Fly free tiers).
-// Fall back to Nodemailer + SMTP for local dev.
+// Backend preference: BREVO > RESEND > SMTP.
+// Brevo first: 300 emails/day free forever with just a verified sender
+// (no domain needed) → ideal when the project doesn't yet own a domain.
+// Resend second: 3000/month free but sandbox-only until domain verified.
+// SMTP last: works in local dev but Render/Vercel/Fly block port 587.
 // =====================================================================
-const useResend = !!RESEND_API_KEY;
+const useBrevo = !!BREVO_API_KEY;
+const useResend = !useBrevo && !!RESEND_API_KEY;
 const resend = useResend ? new Resend(RESEND_API_KEY) : null;
 
 let transporter = null;
-if (!useResend && SMTP_USER && SMTP_PASS) {
+if (!useBrevo && !useResend && SMTP_USER && SMTP_PASS) {
   transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
@@ -41,15 +51,23 @@ if (!useResend && SMTP_USER && SMTP_PASS) {
   });
 }
 
-if (useResend) {
+if (useBrevo) {
+  console.log('[mailer] 🚀 Using Brevo HTTP API');
+} else if (useResend) {
   console.log('[mailer] 🚀 Using Resend HTTP API');
 } else if (transporter) {
   console.log('[mailer] 📨 Using Nodemailer SMTP (Gmail)');
 } else {
-  console.warn('[mailer] ⚠️  No email backend configured. Set RESEND_API_KEY or SMTP_*.');
+  console.warn(
+    '[mailer] ⚠️  No email backend configured. Set BREVO_API_KEY, RESEND_API_KEY or SMTP_*.',
+  );
 }
 
 async function verifyTransport() {
+  if (useBrevo) {
+    console.log('[mailer] ✅ Brevo ready (no SMTP handshake needed).');
+    return true;
+  }
   if (useResend) {
     console.log('[mailer] ✅ Resend ready (no SMTP handshake needed).');
     return true;
@@ -66,10 +84,42 @@ async function verifyTransport() {
 }
 
 /**
- * Cross-provider send. Resend first when configured, otherwise SMTP.
+ * Cross-provider send. Brevo first, then Resend, then SMTP.
  * Supports an optional `bcc` so we keep an audit trail copy to admin.
  */
 async function sendMail({ to, subject, html, label, bcc }) {
+  if (useBrevo) {
+    const sender = parseFrom(FROM);
+    const payload = {
+      sender: sender.name ? sender : { email: sender.email },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    };
+    if (bcc) payload.bcc = [{ email: bcc }];
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      console.error(`[mailer] Brevo ${label} failed:`, resp.status, body);
+      throw new Error(`Brevo ${resp.status}: ${body}`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    console.log(
+      `[mailer] → ${label} sent via Brevo:`,
+      data.messageId,
+      bcc ? `(bcc: ${bcc})` : '',
+    );
+    return data;
+  }
+
   if (useResend) {
     const payload = { from: FROM, to, subject, html };
     if (bcc) payload.bcc = bcc;
