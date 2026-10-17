@@ -27,13 +27,14 @@ function isWebClient(req) {
 }
 
 function cookieOpts() {
-  // In prod we want Secure (HTTPS only). In tests / local dev we allow
-  // Secure=false so cookies work on http://localhost.
-  const secure = process.env.NODE_ENV === 'production';
+  // Prod: frontend (Vercel) and backend (Render) live on different domains,
+  // so the cookie must be SameSite=None + Secure to be sent cross-site.
+  // Local dev: SameSite=Lax over plain http on localhost.
+  const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure,
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/api/auth',     // narrow the surface — only auth routes see it
     maxAge: MAX_AGE,
   };
@@ -47,8 +48,11 @@ function setRefreshCookies(req, res, { sessionId, refreshToken }) {
 
 function clearRefreshCookies(req, res) {
   if (!isWebClient(req)) return;
-  res.clearCookie(COOKIE_NAME, { path: '/api/auth' });
-  res.clearCookie(SESSION_COOKIE, { path: '/api/auth' });
+  // Must match the attributes used to set the cookie, otherwise browsers
+  // refuse to clear it (SameSite=None/Secure mismatch in prod).
+  const { maxAge: _ignored, ...clearOpts } = cookieOpts();
+  res.clearCookie(COOKIE_NAME, clearOpts);
+  res.clearCookie(SESSION_COOKIE, clearOpts);
 }
 
 /**
