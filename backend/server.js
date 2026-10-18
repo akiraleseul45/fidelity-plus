@@ -25,10 +25,12 @@ initSentry();
 const { verifyTransport } = require('./mailer');
 require('./src/db/driver'); // initialise DB driver (sqlite or postgres) & run schema
 const qrRepo = require('./src/repositories/qrNonces');
+const sessionsRepo = require('./src/repositories/sessions');
 
 const authRoutes = require('./src/routes/auth');
 const loyaltyRoutes = require('./src/routes/loyalty');
 const partnerRoutes = require('./src/routes/partners');
+const adminRoutes = require('./src/routes/admin');
 const healthRoutes = require('./src/routes/health');
 
 const PORT = process.env.PORT || 3000;
@@ -92,6 +94,7 @@ app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/partners', partnerRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ---------------------------------------------------------------------
 // Error handlers
@@ -147,6 +150,17 @@ const server = app.listen(PORT, async () => {
   await verifyTransport();
   // Start the QR-nonce purge loop now that the server is up.
   qrRepo.startPurgeLoop();
+  // Purge expired/revoked sessions periodically (audit FP-05).
+  const purgeSessions = async () => {
+    try {
+      const removed = await sessionsRepo.purgeExpired();
+      if (removed > 0) logger.debug({ removed }, '[sessions] purged');
+    } catch (err) {
+      logger.warn({ err }, '[sessions] purge failed');
+    }
+  };
+  setTimeout(purgeSessions, 10_000).unref();
+  setInterval(purgeSessions, 60 * 60 * 1000).unref();
 });
 
 // Graceful shutdown — let in-flight requests finish.

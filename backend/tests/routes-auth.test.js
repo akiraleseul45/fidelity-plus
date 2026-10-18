@@ -160,6 +160,39 @@ describe('routes — DELETE /api/auth/me (GDPR)', () => {
       .set('Authorization', `Bearer ${signup.body.accessToken}`);
     expect(me.status).toBe(401); // deleted_at non-null → user invisible
   });
+
+  test('deletion anonymises personal data and revokes sessions (FP-05)', async () => {
+    const driver = require('../src/db/driver');
+    const signup = await request(app)
+      .post('/api/auth/client/signup')
+      .send({ pseudonym: 'WipeMe', email: 'wipe@test.local', consent: true });
+    const userId = signup.body.user.id;
+
+    await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${signup.body.accessToken}`);
+
+    const u = await driver.queryOne('SELECT email FROM users WHERE id = ?', [userId]);
+    expect(u.email).toBeNull();
+    const prof = await driver.queryOne('SELECT pseudonym FROM client_profiles WHERE user_id = ?', [userId]);
+    expect(prof.pseudonym).toBe('Compte supprimé');
+    const sessions = await driver.queryOne('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?', [userId]);
+    expect(sessions.n).toBe(0);
+    const lookup = await driver.queryOne('SELECT COUNT(*) AS n FROM login_code_lookup WHERE user_id = ?', [userId]);
+    expect(lookup.n).toBe(0);
+
+    // The old login code can no longer be used.
+    const login = await request(app)
+      .post('/api/auth/client/login')
+      .send({ code: signup.body.loginCode });
+    expect(login.status).toBe(401);
+
+    // The old refresh token is refused.
+    const refresh = await request(app)
+      .post('/api/auth/refresh')
+      .send({ sessionId: signup.body.sessionId, refreshToken: signup.body.refreshToken });
+    expect(refresh.status).toBe(401);
+  });
 });
 
 describe('routes — health', () => {

@@ -34,6 +34,13 @@ const pool = new Pool({
   connectionTimeoutMillis: 10_000,
 });
 
+// A pooler (Supabase/Render) drops idle connections. Without this handler,
+// node-postgres re-emits that as an uncaught 'error' on the pool and the
+// process exits (audit FP-14). Log it and let the pool replace the client.
+pool.on('error', (err) => {
+  logger.error({ err }, '[db] idle pg client error (connection will be replaced)');
+});
+
 // Initial schema run (idempotent — CREATE TABLE IF NOT EXISTS).
 (async () => {
   const schemaPath = path.join(__dirname, 'postgres-schema.sql');

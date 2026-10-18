@@ -54,7 +54,14 @@ const partnerSignupSchema = z.object({
   email: Email,
   phoneFixed: Phone,
   phoneMobile: Phone,
-  imageUrl: z.string().trim().url().max(500).optional().or(z.literal('')),
+  imageUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .url()
+    .refine((u) => /^https:\/\//i.test(u), 'URL image : seul https est autorisé')
+    .optional()
+    .or(z.literal('')),
   consent: z.boolean().refine((v) => v === true, 'consentement RGPD requis'),
 });
 
@@ -72,8 +79,10 @@ const scanQrSchema = z.object({
   qrToken: z.string().min(20).max(1000),
 });
 
+// Redeem is gated by the client's live QR (audit FP-08): same token shape
+// as a scan, not a raw clientId.
 const redeemSchema = z.object({
-  clientId: z.string().uuid(),
+  qrToken: z.string().min(20).max(1000),
 });
 
 // ---------- Partner ----------

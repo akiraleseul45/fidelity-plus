@@ -22,3 +22,13 @@ process.env.CODE_HMAC_SECRET = 'test-hmac-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASS = '';
 process.env.ADMIN_EMAIL = 'admin@test.local';
+
+// Never send real email during tests, even if the dev's shell exports keys
+// (audit FP-27). With no backend configured, mailer.js becomes a no-op that
+// throws on send — and every send is wrapped in a non-blocking .catch().
+delete process.env.BREVO_API_KEY;
+delete process.env.RESEND_API_KEY;
+delete process.env.MAIL_FROM;
+
+// Admin API is disabled unless a test opts in by setting this.
+delete process.env.ADMIN_API_TOKEN;

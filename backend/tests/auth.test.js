@@ -63,6 +63,35 @@ describe('authService — client signup & login', () => {
     expect(t3).toBeNull();
   });
 
+  test('two concurrent refreshes with the same token → only one succeeds (FP-19)', async () => {
+    const { userId } = await authService.signupClient({ pseudonym: 'RaceRefresh' });
+    const t1 = await authService.issueTokens({ userId, role: 'client' });
+    const [a, b] = await Promise.all([
+      authService.refresh({ sessionId: t1.sessionId, refreshToken: t1.refreshToken }),
+      authService.refresh({ sessionId: t1.sessionId, refreshToken: t1.refreshToken }),
+    ]);
+    const successes = [a, b].filter(Boolean).length;
+    expect(successes).toBe(1);
+  });
+
+  test('replaying a revoked refresh token revokes the whole family (FP-19)', async () => {
+    const sessionsRepo = require('../src/repositories/sessions');
+    const { userId } = await authService.signupClient({ pseudonym: 'Replay' });
+    const t1 = await authService.issueTokens({ userId, role: 'client' });
+    // Rotate once → t1 is now revoked, t2 is live.
+    const t2 = await authService.refresh({ sessionId: t1.sessionId, refreshToken: t1.refreshToken });
+    expect(t2).not.toBeNull();
+    // Replay the OLD (revoked) token → triggers family revocation.
+    const replay = await authService.refresh({ sessionId: t1.sessionId, refreshToken: t1.refreshToken });
+    expect(replay).toBeNull();
+    // The live session t2 must now also be refused.
+    const afterFamilyRevoke = await authService.refresh({
+      sessionId: t2.sessionId,
+      refreshToken: t2.refreshToken,
+    });
+    expect(afterFamilyRevoke).toBeNull();
+  });
+
   test('failed-attempt counter locks the account after 5 bad tries', async () => {
     const { userId } = await authService.signupClient({ pseudonym: 'Frank' });
     for (let i = 0; i < 5; i++) {

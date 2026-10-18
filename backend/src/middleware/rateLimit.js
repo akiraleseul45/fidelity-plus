@@ -1,10 +1,19 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+const { clientIp } = require('../lib/clientIp');
 
 /**
  * Rate limiting policies — adjusted per route sensitivity.
  *
- * In prod (Redis): switch the store. For SQLite/single-node deploys the
- * default in-memory store is fine.
+ * Keyed on the real client IP (Cloudflare's CF-Connecting-IP in prod, see
+ * lib/clientIp) and NOT on req.ip, which resolves to a shared proxy hop
+ * behind Render (audit FP-02). `ipKeyGenerator` normalises IPv6 to a /64 so
+ * a single client can't rotate through its address block.
+ *
+ * The store is in-memory: at single-instance scale this is fine, but it
+ * resets on every Render restart/redeploy. A shared store (Redis) would be
+ * needed before scaling to multiple instances — flagged, not introduced here
+ * to avoid adding a paid dependency without confirmation.
  *
  * In NODE_ENV=test all limiters are disabled so the suite can exercise
  * routes freely (testing the limiter itself would be flaky and slow).
@@ -13,6 +22,10 @@ const rateLimit = require('express-rate-limit');
 const IS_TEST = process.env.NODE_ENV === 'test';
 const noop = (_req, _res, next) => next();
 
+function keyGenerator(req) {
+  return ipKeyGenerator(clientIp(req));
+}
+
 function make({ windowMs, limit, message }) {
   if (IS_TEST) return noop;
   return rateLimit({
@@ -20,6 +33,7 @@ function make({ windowMs, limit, message }) {
     limit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
+    keyGenerator,
     message,
   });
 }
