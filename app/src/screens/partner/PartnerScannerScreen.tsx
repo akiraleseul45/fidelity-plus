@@ -11,10 +11,12 @@ import { colors, radius, spacing, typography } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PartnerScanner'>;
 
+type Mode = 'add' | 'redeem';
+
 type ScanState =
   | { kind: 'scanning' }
   | { kind: 'pending' }
-  | { kind: 'done'; pseudonym: string; points: number; reached: boolean }
+  | { kind: 'done'; mode: Mode; pseudonym: string; points: number; reached: boolean }
   | { kind: 'error'; message: string };
 
 /**
@@ -28,9 +30,10 @@ type ScanState =
  * anti-replay (single-use nonce), so we directly show the outcome.
  */
 export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
-  const { user, scanQr, logout } = useApp();
+  const { user, scanQr, redeemReward, logout } = useApp();
   const partner = user?.role === 'partner' ? user : null;
   const [state, setState] = useState<ScanState>({ kind: 'scanning' });
+  const [mode, setMode] = useState<Mode>('add');
 
   const handleScan = useCallback(
     async ({ data }: { data: string }) => {
@@ -48,19 +51,22 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
         }
       }
 
-      const res = await scanQr(qrToken);
+      // In "reward" mode we redeem against the client's live QR (audit FP-08);
+      // otherwise we add a point.
+      const res = mode === 'redeem' ? await redeemReward(qrToken) : await scanQr(qrToken);
       if (!res.success) {
-        setState({ kind: 'error', message: res.error || 'Scan impossible.' });
+        setState({ kind: 'error', message: res.error || 'Opération impossible.' });
         return;
       }
       setState({
         kind: 'done',
+        mode,
         pseudonym: res.pseudonym || 'Client',
         points: res.points ?? 0,
-        reached: !!res.reached,
+        reached: !!(res as { reached?: boolean }).reached,
       });
     },
-    [state.kind, scanQr],
+    [state.kind, scanQr, redeemReward, mode],
   );
 
   const onLogout = async () => {
@@ -100,8 +106,34 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
 
         {state.kind === 'scanning' && (
           <View style={styles.bottomBar} pointerEvents="box-none">
+            <View style={styles.modeRow}>
+              <Pressable
+                onPress={() => setMode('add')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === 'add' }}
+                style={[styles.modeChip, mode === 'add' && styles.modeChipActive]}
+              >
+                <Text style={[styles.modeChipText, mode === 'add' && styles.modeChipTextActive]}>
+                  ➕ Ajouter un point
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setMode('redeem')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === 'redeem' }}
+                style={[styles.modeChip, mode === 'redeem' && styles.modeChipActive]}
+              >
+                <Text style={[styles.modeChipText, mode === 'redeem' && styles.modeChipTextActive]}>
+                  🎁 Utiliser une récompense
+                </Text>
+              </Pressable>
+            </View>
             <View style={styles.reticle} />
-            <Text style={styles.bottomText}>Pointe la caméra sur le QR du client</Text>
+            <Text style={styles.bottomText}>
+              {mode === 'redeem'
+                ? 'Scanne le QR du client pour utiliser sa récompense'
+                : 'Pointe la caméra sur le QR du client'}
+            </Text>
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <Button
                 title="Tableau de bord"
@@ -136,11 +168,15 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
 
         {state.kind === 'done' && (
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>+1 point</Text>
+            <Text style={styles.sheetTitle}>
+              {state.mode === 'redeem' ? '🎁 Récompense utilisée' : '+1 point'}
+            </Text>
             <Text style={styles.sheetName}>{state.pseudonym}</Text>
             <Text style={styles.bigPoints}>{state.points} pts</Text>
-            {state.reached && (
-              <Text style={styles.reward}>🎉 Récompense atteinte — offre-la au client !</Text>
+            {state.mode === 'add' && state.reached && (
+              <Text style={styles.reward}>
+                🎉 Récompense atteinte — passe en mode « récompense » pour l'utiliser.
+              </Text>
             )}
             <Button
               title="Scanner le suivant"
@@ -190,6 +226,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
   },
+  modeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  modeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modeChipActive: { backgroundColor: '#fff', borderColor: '#fff' },
+  modeChipText: { ...typography.small, color: '#fff', fontWeight: '700' },
+  modeChipTextActive: { color: colors.text },
   reticle: {
     width: 220,
     height: 220,

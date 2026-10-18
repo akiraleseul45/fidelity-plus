@@ -311,14 +311,18 @@ export async function apiScan(qrToken: string): Promise<{
   });
 }
 
-export async function apiRedeem(clientId: string): Promise<{
+// Redeem is gated by the client's live QR (audit FP-08): the partner scans
+// the client's QR in "reward" mode, exactly like a scan.
+export async function apiRedeem(qrToken: string): Promise<{
   success: boolean;
   points?: number;
+  pseudonym?: string;
+  clientId?: string;
   error?: string;
 }> {
   return fetchJson('/api/loyalty/redeem', {
     method: 'POST',
-    body: JSON.stringify({ clientId }),
+    body: JSON.stringify({ qrToken }),
   });
 }
 

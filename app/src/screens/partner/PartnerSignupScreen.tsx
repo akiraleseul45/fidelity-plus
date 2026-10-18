@@ -30,6 +30,7 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const valid =
     ownerName.trim().length > 1 &&
@@ -41,6 +42,7 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
   const submit = async () => {
     if (!valid || loading) return;
     setLoading(true);
+    setError(null);
     const result = await signupPartner({
       ownerName: ownerName.trim(),
       companyName: companyName.trim(),
@@ -53,13 +55,10 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
     });
     setLoading(false);
 
+    // On failure, stay on the form and show the real error — the account was
+    // NOT created (audit FP-15).
     if (!result.ok) {
-      navigation.replace('PartnerSignupSuccess', {
-        code: '—',
-        email: email.trim(),
-        emailSent: false,
-        apiError: result.error,
-      });
+      setError(result.error || "L'inscription a échoué. Réessaie.");
       return;
     }
 
@@ -133,6 +132,9 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
 
           <Pressable
             onPress={() => setConsent((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: consent }}
+            accessibilityLabel="J'accepte que mes données soient utilisées pour gérer mon compte professionnel"
             style={({ pressed }) => [styles.consentRow, pressed && { opacity: 0.8 }]}
             hitSlop={6}
           >
@@ -144,6 +146,21 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
               (consentement RGPD requis).
             </Text>
           </Pressable>
+
+          {error ? (
+            <View
+              accessibilityRole="alert"
+              style={{
+                backgroundColor: '#FDECEC',
+                borderRadius: radius.md,
+                padding: spacing.md,
+                borderWidth: 1,
+                borderColor: '#F3B4B4',
+              }}
+            >
+              <Text style={{ color: colors.danger, fontWeight: '600' }}>{error}</Text>
+            </View>
+          ) : null}
         </ScrollView>
         <View style={{ paddingBottom: spacing.lg }}>
           <Button

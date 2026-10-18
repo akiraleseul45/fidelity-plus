@@ -89,6 +89,9 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
 
           <Pressable
             onPress={() => setConsent((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: consent }}
+            accessibilityLabel="J'accepte que mes données soient utilisées pour gérer mon compte de fidélité"
             style={({ pressed }) => [styles.consentRow, pressed && { opacity: 0.8 }]}
             hitSlop={6}
           >

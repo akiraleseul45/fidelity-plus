@@ -71,10 +71,8 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
     );
   }, []);
 
-  // Auto-request on mount.
-  useEffect(() => {
-    requestLocation();
-  }, [requestLocation]);
+  // Geolocation is requested only when the user taps "Me localiser"
+  // (audit FP-24), never automatically on mount.
 
   // Refresh server data on mount.
   useEffect(() => {

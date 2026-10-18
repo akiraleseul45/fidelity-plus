@@ -12,6 +12,7 @@ import {
   loadTokens,
   saveTokens,
 } from '../store/api';
+import { useLoyaltyStore } from './loyaltyStore';
 
 /**
  * Auth store — owns the current user, login/signup/logout actions.
@@ -135,6 +136,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   async logout() {
     await apiLogout();
+    // Wipe the previous user's loyalty data so it can't leak into the next
+    // session on this device (audit FP-22).
+    useLoyaltyStore.getState().clear();
     set({ user: null });
   },
 
@@ -142,6 +146,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const res = await apiDeleteMe();
     if (!res.success) return { ok: false as const, error: res.error || 'Suppression impossible.' };
     await clearTokens();
+    useLoyaltyStore.getState().clear();
     set({ user: null });
     return { ok: true as const };
   },

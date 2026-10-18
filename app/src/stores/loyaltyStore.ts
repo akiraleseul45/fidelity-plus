@@ -29,7 +29,7 @@ type LoyaltyState = {
   refreshPartnerLoyalty: () => Promise<void>;
   refreshQr: () => Promise<string | null>;
   scanQr: (qrToken: string) => ReturnType<typeof apiScan>;
-  redeemReward: (clientId: string) => ReturnType<typeof apiRedeem>;
+  redeemReward: (qrToken: string) => ReturnType<typeof apiRedeem>;
   updatePartnerSettings: (settings: {
     rewardThreshold: number;
     rewardType: 'free_meal' | 'discount';
@@ -75,8 +75,8 @@ export const useLoyaltyStore = create<LoyaltyState>((set, get) => ({
     return r;
   },
 
-  async redeemReward(clientId) {
-    const r = await apiRedeem(clientId);
+  async redeemReward(qrToken) {
+    const r = await apiRedeem(qrToken);
     if (r.success) await get().refreshPartnerLoyalty();
     return r;
   },
