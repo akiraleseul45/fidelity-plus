@@ -99,7 +99,8 @@ describe('authService — client signup & login', () => {
     }
     const u = await usersRepo.byId(userId);
     expect(u.failed_attempts).toBeGreaterThanOrEqual(5);
-    expect(u.locked_until).toBeGreaterThan(Date.now());
+    // locked_until is BIGINT → string on Postgres, number on SQLite: coerce.
+    expect(Number(u.locked_until)).toBeGreaterThan(Date.now());
   });
 });
 
