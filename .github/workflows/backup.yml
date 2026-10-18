@@ -1,0 +1,91 @@
+name: DB backup to R2
+
+# Daily off-site, encrypted backup of the Supabase Postgres database to
+# Cloudflare R2 (audit FP-06). A separate workflow restore-tests it monthly.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL          Postgres connection string for pg_dump. Use the
+#                                Supabase *Session pooler* (port 5432) or Direct
+#                                connection — NOT the transaction pooler (6543).
+#   BACKUP_ENCRYPTION_PASSPHRASE Strong passphrase used to encrypt every dump.
+#   R2_ENDPOINT                  https://<account_id>.r2.cloudflarestorage.com
+#   R2_BUCKET                    e.g. fidelity-plus-backups
+#   R2_ACCESS_KEY_ID             R2 API token access key id
+#   R2_SECRET_ACCESS_KEY         R2 API token secret
+#
+# Retention is enforced by an R2 lifecycle rule on the bucket (see docs in the
+# remediation report): 30 days on daily/, plus a weekly copy kept 8 weeks.
+
+on:
+  schedule:
+    - cron: '17 2 * * *' # 02:17 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgresql-client 17
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump, encrypt and upload
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          DOW="$(date -u +%u)" # 1..7, 7 = Sunday
+          FILE="fidelity-${STAMP}.sql.gz.enc"
+
+          # Logical dump of the public schema only (the app owns public).
+          pg_dump --no-owner --no-privileges --schema=public \
+            --format=plain "$BACKUP_DATABASE_URL" \
+            | gzip -9 \
+            | openssl enc -aes-256-cbc -pbkdf2 -salt \
+                -pass env:BACKUP_ENCRYPTION_PASSPHRASE \
+            > "$FILE"
+
+          SIZE=$(stat -c%s "$FILE")
+          echo "Encrypted dump: $FILE ($SIZE bytes)"
+          if [ "$SIZE" -lt 200 ]; then
+            echo "::error::Backup suspiciously small ($SIZE bytes) — aborting"
+            exit 1
+          fi
+
+          # Verify it decrypts + gunzips and contains the expected tables
+          # before we trust it (does not restore anything).
+          openssl enc -d -aes-256-cbc -pbkdf2 \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE -in "$FILE" \
+            | gunzip \
+            | grep -q 'CREATE TABLE public.users' \
+            && echo "Integrity check OK (users table present)" \
+            || { echo "::error::Backup integrity check failed"; exit 1; }
+
+          aws s3 cp "$FILE" "s3://${R2_BUCKET}/daily/${FILE}" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          if [ "$DOW" = "7" ]; then
+            aws s3 cp "$FILE" "s3://${R2_BUCKET}/weekly/${FILE}" \
+              --endpoint-url "$R2_ENDPOINT"
+            echo "Weekly copy stored."
+          fi
+
+          # Confirm the object is really there with a non-zero size.
+          aws s3 ls "s3://${R2_BUCKET}/daily/${FILE}" --endpoint-url "$R2_ENDPOINT"
+          echo "Upload verified."
