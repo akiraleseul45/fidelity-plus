@@ -176,10 +176,11 @@ describe('routes — DELETE /api/auth/me (GDPR)', () => {
     expect(u.email).toBeNull();
     const prof = await driver.queryOne('SELECT pseudonym FROM client_profiles WHERE user_id = ?', [userId]);
     expect(prof.pseudonym).toBe('Compte supprimé');
+    // COUNT(*) is a bigint → string on Postgres, number on SQLite: coerce.
     const sessions = await driver.queryOne('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?', [userId]);
-    expect(sessions.n).toBe(0);
+    expect(Number(sessions.n)).toBe(0);
     const lookup = await driver.queryOne('SELECT COUNT(*) AS n FROM login_code_lookup WHERE user_id = ?', [userId]);
-    expect(lookup.n).toBe(0);
+    expect(Number(lookup.n)).toBe(0);
 
     // The old login code can no longer be used.
     const login = await request(app)
