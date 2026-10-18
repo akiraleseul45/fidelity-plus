@@ -76,7 +76,7 @@ jobs:
       - name: Apply Postgres schema
         run: node scripts/pg-schema.js
       - name: Tests (PostgreSQL)
-        run: npx jest --runInBand --forceExit
+        run: npx jest --runInBand --forceExit --reporters=default --reporters=github-actions
 
   frontend:
     name: Frontend typecheck + web build
