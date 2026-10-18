@@ -27,6 +27,10 @@ type Props = {
 const ORLEANS: [number, number] = [47.9027, 1.909];
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+// Subresource Integrity for the pinned 1.9.4 files (audit FP-20): the browser
+// refuses to run them if the CDN response has been tampered with.
+const LEAFLET_CSS_SRI = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
+const LEAFLET_JS_SRI = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
 
 let leafletPromise: Promise<any> | null = null;
 
@@ -41,6 +45,8 @@ function loadLeaflet(): Promise<any> {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = LEAFLET_CSS;
+      link.integrity = LEAFLET_CSS_SRI;
+      link.crossOrigin = 'anonymous';
       document.head.appendChild(link);
     }
     const existing = document.querySelector(
@@ -54,6 +60,8 @@ function loadLeaflet(): Promise<any> {
     if (!existing) {
       script.src = LEAFLET_JS;
       script.async = true;
+      script.integrity = LEAFLET_JS_SRI;
+      script.crossOrigin = 'anonymous';
       document.head.appendChild(script);
     }
     script.addEventListener('load', () => {

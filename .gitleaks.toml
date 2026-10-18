@@ -1,0 +1,23 @@
+title = "Fidelity Plus gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret matches and the one historical finding tracked separately"
+
+# Historical exposure (audit FP-01): a SMS Partner API key was committed in the
+# very first commit inside .claude/settings.local.json. The file is no longer
+# tracked and a root .gitignore prevents recurrence. The key must be ROTATED by
+# the operator; cleaning it from history is a destructive rewrite that needs the
+# operator's explicit go-ahead. Until then this single commit is allow-listed so
+# the pipeline still catches NEW secrets.
+commits = [
+  "85559d5abf9ad63e5494f7b596caaca037e0a516",
+]
+
+# Test fixtures and example env use obviously-fake placeholder values.
+paths = [
+  '''backend/\.env\.example''',
+  '''backend/tests/.*''',
+]

@@ -1,0 +1,71 @@
+name: DB restore test
+
+# Monthly proof that the latest R2 backup actually restores (audit FP-06).
+# A backup you have never restored is not a backup. Runs against a throwaway
+# Postgres service — never against production.
+#
+# Uses the same secrets as backup.yml (R2_* and BACKUP_ENCRYPTION_PASSPHRASE).
+
+on:
+  schedule:
+    - cron: '42 3 1 * *' # 03:42 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: restore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Install postgresql-client 17
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Download latest backup, decrypt and restore
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: restore_test
+        run: |
+          set -euo pipefail
+          LATEST=$(aws s3 ls "s3://${R2_BUCKET}/daily/" --endpoint-url "$R2_ENDPOINT" \
+            | sort | tail -n1 | awk '{print $4}')
+          if [ -z "$LATEST" ]; then echo "::error::No backup found in R2"; exit 1; fi
+          echo "Restoring $LATEST"
+          aws s3 cp "s3://${R2_BUCKET}/daily/${LATEST}" ./backup.enc --endpoint-url "$R2_ENDPOINT"
+
+          openssl enc -d -aes-256-cbc -pbkdf2 \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE -in ./backup.enc \
+            | gunzip \
+            | psql -v ON_ERROR_STOP=1
+
+          # Integrity checks: the core tables exist and are queryable.
+          for t in users client_profiles partner_profiles loyalty scans sessions login_code_lookup qr_nonces meta; do
+            psql -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.$t;" >/dev/null
+            echo "  table $t OK"
+          done
+          echo "✅ Restore test passed."

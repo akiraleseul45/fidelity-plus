@@ -158,12 +158,19 @@ async function issueTokens({ userId, role, userAgent, ip }) {
 }
 
 async function refresh({ sessionId, refreshToken, userAgent, ip }) {
-  const userId = await sessionsRepo.verifyRefreshToken({ sessionId, refreshToken });
-  if (!userId) return null;
-  const user = await usersRepo.byId(userId);
+  const r = await sessionsRepo.verifyAndRevoke({ sessionId, refreshToken });
+  // Replay of an already-revoked token → likely theft: revoke the whole
+  // family so neither the attacker nor the victim can keep refreshing (FP-19).
+  if (r.status === 'reused') {
+    await sessionsRepo.revokeAllForUser(r.userId);
+    logger.warn({ userId: r.userId }, '[auth] refresh token replay detected — family revoked');
+    return null;
+  }
+  // Benign concurrent rotation (lost the race), expired, or invalid.
+  if (r.status !== 'ok') return null;
+  const user = await usersRepo.byId(r.userId);
   if (!user) return null;
-  await sessionsRepo.revoke(sessionId);
-  const tokens = await issueTokens({ userId, role: user.role, userAgent, ip });
+  const tokens = await issueTokens({ userId: r.userId, role: user.role, userAgent, ip });
   return { user, ...tokens };
 }
 

@@ -175,9 +175,9 @@ async function sendAdminMail(payload) {
 }
 
 async function sendProMail(payload) {
+  // No BCC: the login code must never be copied to the admin (audit FP-11).
   return sendMail({
     to: payload.email,
-    bcc: payload.email !== ADMIN_EMAIL ? ADMIN_EMAIL : undefined,
     subject: `Bienvenue sur Fidelity Plus — votre code d'accès`,
     html: proEmailTemplate(payload),
     label: 'pro email',
@@ -185,9 +185,9 @@ async function sendProMail(payload) {
 }
 
 async function sendClientWelcomeMail(payload) {
+  // No BCC: the login code must never be copied to the admin (audit FP-11).
   return sendMail({
     to: payload.email,
-    bcc: payload.email !== ADMIN_EMAIL ? ADMIN_EMAIL : undefined,
     subject: `Bienvenue sur Fidelity Plus — ton code de connexion`,
     html: clientEmailTemplate(payload),
     label: 'client welcome email',

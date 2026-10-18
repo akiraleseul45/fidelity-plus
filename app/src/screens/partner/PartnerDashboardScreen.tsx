@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect } from 'react';
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
@@ -8,8 +8,8 @@ import { colors, radius, spacing, typography } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PartnerDashboard'>;
 
-export const PartnerDashboardScreen: React.FC<Props> = () => {
-  const { user, partnerLoyalty, refreshPartnerLoyalty, redeemReward } = useApp();
+export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
+  const { user, partnerLoyalty, refreshPartnerLoyalty } = useApp();
   const partner = user?.role === 'partner' ? user : null;
 
   useEffect(() => {
@@ -24,29 +24,7 @@ export const PartnerDashboardScreen: React.FC<Props> = () => {
     );
   }
 
-  const onRedeem = async (clientId: string, pseudonym: string) => {
-    const confirm =
-      Platform.OS === 'web'
-        ? typeof window !== 'undefined'
-          ? window.confirm(`Retirer ${partner.rewardThreshold} pts à ${pseudonym} ?`)
-          : true
-        : await new Promise<boolean>((resolve) =>
-            Alert.alert(
-              'Utiliser la récompense ?',
-              `Retirer ${partner.rewardThreshold} pts à ${pseudonym} ?`,
-              [
-                { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Confirmer', style: 'destructive', onPress: () => resolve(true) },
-              ],
-            ),
-          );
-    if (!confirm) return;
-    const res = await redeemReward(clientId);
-    if (!res.success) {
-      if (Platform.OS === 'web') window.alert(res.error || 'Erreur.');
-      else Alert.alert('Erreur', res.error || 'Impossible.');
-    }
-  };
+  const readyCount = partnerLoyalty.filter((i) => i.points >= partner.rewardThreshold).length;
 
   return (
     <Screen padded={false}>
@@ -57,7 +35,7 @@ export const PartnerDashboardScreen: React.FC<Props> = () => {
         refreshing={false}
         onRefresh={refreshPartnerLoyalty}
         ListHeaderComponent={
-          <View style={{ marginBottom: spacing.md }}>
+          <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
             <Text style={styles.h1}>{partnerLoyalty.length} clients</Text>
             <Text style={styles.sub}>
               Seuil récompense : {partner.rewardThreshold} pts ·{' '}
@@ -65,6 +43,21 @@ export const PartnerDashboardScreen: React.FC<Props> = () => {
                 ? 'Gratuit seulement'
                 : `−${partner.rewardValue ?? 10}%`}
             </Text>
+            {readyCount > 0 ? (
+              <View style={styles.hintBox}>
+                <Text style={styles.hintText}>
+                  {readyCount} client{readyCount > 1 ? 's' : ''} ont atteint le seuil. Pour utiliser
+                  une récompense, ouvre le scanner en mode « récompense » et scanne le QR du client.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => navigation.navigate('PartnerScanner')}
+                  style={styles.hintBtn}
+                >
+                  <Text style={styles.hintBtnText}>Ouvrir le scanner</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -73,20 +66,19 @@ export const PartnerDashboardScreen: React.FC<Props> = () => {
         renderItem={({ item }) => {
           const ready = item.points >= partner.rewardThreshold;
           return (
-            <Pressable
-              onPress={() => ready && onRedeem(item.clientId, item.pseudonym)}
+            <View
+              accessibilityRole="text"
+              accessibilityLabel={`${item.pseudonym}, ${item.points} points${ready ? ', récompense disponible' : ''}`}
               style={[styles.row, ready && styles.rowReady]}
             >
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{item.pseudonym}</Text>
-                <Text style={styles.cid} numberOfLines={1}>
-                  {item.clientId.slice(0, 8)}…
-                </Text>
+                {ready ? <Text style={styles.readyTag}>🎁 Récompense disponible</Text> : null}
               </View>
               <Text style={[styles.pts, ready && { color: colors.primary }]}>
                 {item.points} pts
               </Text>
-            </Pressable>
+            </View>
           );
         }}
       />
@@ -109,6 +101,21 @@ const styles = StyleSheet.create({
   },
   rowReady: { borderColor: colors.primary, backgroundColor: '#FFF5F6' },
   name: { ...typography.h3, color: colors.text },
-  cid: { ...typography.small, color: colors.textMuted },
+  readyTag: { ...typography.small, color: colors.primary, fontWeight: '700', marginTop: 2 },
   pts: { ...typography.h3, color: colors.text },
+  hintBox: {
+    backgroundColor: '#EAF4FF',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  hintText: { ...typography.small, color: '#0B4A8C', lineHeight: 18 },
+  hintBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  hintBtnText: { ...typography.small, color: '#fff', fontWeight: '700' },
 });

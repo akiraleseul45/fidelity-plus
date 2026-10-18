@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------
+# Root .gitignore — applies to the whole monorepo (app/ + backend/)
+# ---------------------------------------------------------------------
+
+# Local tool state — may contain machine-specific allow-lists and, if a
+# command with an inline secret was approved, that secret in clear text.
+# Never version this file.
+.claude/settings.local.json
+.claude/**/settings.local.json
+
+# Dependencies
+node_modules/
+
+# Secrets & env
+.env
+.env.*
+!.env.example
+
+# Logs / temp
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Databases (never commit a copy of a DB)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+data/
+
+# Backups (never commit DB dumps)
+*.dump
+*.sql.gz
+backups/
+
+# Build output
+dist/
+web-build/
+.expo/
+*.tsbuildinfo

@@ -6,7 +6,9 @@ const router = express.Router();
 
 router.get('/', generalLimiter, async (req, res, next) => {
   try {
-    const rows = await partnersRepo.listPublic();
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const rows = await partnersRepo.listPublic({ limit, offset });
     const items = rows.map((p) => ({
       id: p.id,
       ownerName: p.ownerName,

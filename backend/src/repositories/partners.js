@@ -49,7 +49,9 @@ module.exports = {
     );
   },
 
-  async listPublic() {
+  // Public directory: only approved partners are shown (audit FP-09).
+  // Pending/suspended partners stay hidden until an operator approves them.
+  async listPublic({ limit = 100, offset = 0 } = {}) {
     return driver.query(
       `SELECT u.id, u.created_at,
               p.owner_name AS "ownerName",
@@ -65,9 +67,40 @@ module.exports = {
        FROM users u
        INNER JOIN partner_profiles p ON p.user_id = u.id
        WHERE u.deleted_at IS NULL
-         AND p.status IN ('approved', 'pending')
-       ORDER BY p.created_at DESC`,
+         AND p.status = 'approved'
+       ORDER BY p.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset],
     );
+  },
+
+  // Operator-only listing for moderation (audit FP-09). Optional status
+  // filter; otherwise all non-deleted partners, pending first.
+  async listByStatus(status = null) {
+    const base = `SELECT u.id, u.email, u.created_at,
+              p.owner_name AS "ownerName",
+              p.company_name AS "companyName",
+              p.address,
+              p.phone_fixed AS "phoneFixed",
+              p.phone_mobile AS "phoneMobile",
+              p.status
+       FROM users u
+       INNER JOIN partner_profiles p ON p.user_id = u.id
+       WHERE u.deleted_at IS NULL`;
+    if (status) {
+      return driver.query(`${base} AND p.status = ? ORDER BY p.created_at DESC`, [status]);
+    }
+    return driver.query(`${base} ORDER BY p.created_at DESC`);
+  },
+
+  // Operator-only: approve / suspend / reset a partner (audit FP-09).
+  async setStatus(userId, status) {
+    const res = await driver.mutate(
+      `UPDATE partner_profiles SET status = ?, updated_at = ?
+       WHERE user_id = ?`,
+      [status, Date.now(), userId],
+    );
+    return res.changes === 1;
   },
 
   async updateRewardSettings(userId, { rewardThreshold, rewardType, rewardValue }) {

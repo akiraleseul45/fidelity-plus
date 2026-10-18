@@ -30,8 +30,10 @@ router.post(
         partnerId: req.user.id,
       });
       if (!result.ok) {
-        const httpStatus = result.error === 'already_used' ? 409 : 400;
-        return res.status(httpStatus).json({ success: false, error: humanizeError(result.error) });
+        return res.status(httpStatusFor(result.error)).json({
+          success: false,
+          error: humanizeError(result.error),
+        });
       }
       res.json({
         success: true,
@@ -51,18 +53,26 @@ router.post(
   '/redeem',
   requireAuth,
   requireRole('partner'),
+  scanLimiter,
   validate(redeemSchema),
   async (req, res, next) => {
     try {
       const result = await loyaltyService.redeem({
-        clientId: req.body.clientId,
+        qrToken: req.body.qrToken,
         partnerId: req.user.id,
       });
       if (!result.ok) {
-        const httpStatus = result.error === 'insufficient_points' ? 400 : 500;
-        return res.status(httpStatus).json({ success: false, error: humanizeError(result.error) });
+        return res.status(httpStatusFor(result.error)).json({
+          success: false,
+          error: humanizeError(result.error),
+        });
       }
-      res.json({ success: true, points: result.points });
+      res.json({
+        success: true,
+        points: result.points,
+        pseudonym: result.pseudonym,
+        clientId: result.clientId,
+      });
     } catch (err) {
       next(err);
     }
@@ -105,13 +115,23 @@ router.put(
 
 function humanizeError(code) {
   switch (code) {
-    case 'expired':             return 'Le QR code a expiré. Demande-en un nouveau.';
-    case 'invalid':             return 'QR code invalide.';
-    case 'already_used':        return 'Ce QR code a déjà été utilisé.';
-    case 'unknown_partner':     return 'Compte professionnel introuvable.';
-    case 'unknown_client':      return 'Client introuvable.';
-    case 'insufficient_points': return 'Pas assez de points pour cette récompense.';
-    default:                    return 'Opération impossible.';
+    case 'expired':              return 'Le QR code a expiré. Demande-en un nouveau.';
+    case 'invalid':              return 'QR code invalide.';
+    case 'already_used':         return 'Ce QR code a déjà été utilisé.';
+    case 'unknown_partner':      return 'Compte professionnel introuvable.';
+    case 'partner_not_approved': return "Ton compte professionnel n'est pas encore validé.";
+    case 'unknown_client':       return 'Client introuvable.';
+    case 'insufficient_points':  return 'Pas assez de points pour cette récompense.';
+    default:                     return 'Opération impossible.';
+  }
+}
+
+function httpStatusFor(code) {
+  switch (code) {
+    case 'already_used':         return 409;
+    case 'partner_not_approved': return 403;
+    case 'transaction_failed':   return 500;
+    default:                     return 400; // invalid, expired, unknown_*, insufficient_points
   }
 }
 

@@ -6,9 +6,16 @@
 const authService = require('../src/services/auth');
 const loyaltyService = require('../src/services/loyalty');
 const loyaltyRepo = require('../src/repositories/loyalty');
+const partnersRepo = require('../src/repositories/partners');
 
 let clientId;
 let partnerId;
+
+// Helper: redeem now requires the client's live QR (audit FP-08).
+async function redeemWithFreshQr(cId, pId) {
+  const { token } = await loyaltyService.issueQrForClient(cId);
+  return loyaltyService.redeem({ qrToken: token, partnerId: pId });
+}
 
 beforeAll(async () => {
   const c = await authService.signupClient({ pseudonym: 'Loyalty Client' });
@@ -21,6 +28,9 @@ beforeAll(async () => {
     consent: true,
   });
   partnerId = p.userId;
+  // Partners are created 'pending' and cannot scan/redeem until approved
+  // (audit FP-09). Approve for the loyalty flow tests.
+  await partnersRepo.setStatus(partnerId, 'approved');
 });
 
 describe('loyaltyService — QR + scan', () => {
@@ -84,8 +94,8 @@ describe('loyaltyService — qr lifecycle / cleanup', () => {
 });
 
 describe('loyaltyService — redeem', () => {
-  test('redeem fails when balance < threshold', async () => {
-    const r = await loyaltyService.redeem({ clientId, partnerId });
+  test('redeem fails when balance < threshold (and keeps the nonce)', async () => {
+    const r = await redeemWithFreshQr(clientId, partnerId);
     expect(r.ok).toBe(false);
     expect(r.error).toBe('insufficient_points');
   });
@@ -96,9 +106,88 @@ describe('loyaltyService — redeem', () => {
       await loyaltyService.scan({ qrToken: token, partnerId });
     }
     const before = await loyaltyRepo.balanceOf(clientId, partnerId);
-    const r = await loyaltyService.redeem({ clientId, partnerId });
+    const r = await redeemWithFreshQr(clientId, partnerId);
     expect(r.ok).toBe(true);
     expect(r.points).toBe(before - 10);
+  });
+
+  test('redeem is rejected for a non-approved partner (FP-09)', async () => {
+    const pend = await authService.signupPartner({
+      ownerName: 'P', companyName: 'Pending Co', address: '2 rue test, 45000 Orleans',
+      email: 'pending-redeem@test.local', consent: true,
+    });
+    const { token } = await loyaltyService.issueQrForClient(clientId);
+    const r = await loyaltyService.redeem({ qrToken: token, partnerId: pend.userId });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('partner_not_approved');
+  });
+
+  test('redeem requires the client QR, not a raw clientId (FP-08)', async () => {
+    // Passing no qrToken must not redeem anything.
+    const r = await loyaltyService.redeem({ qrToken: 'not-a-real-token-xxxxxxxx', partnerId });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('invalid');
+  });
+});
+
+describe('loyaltyService — concurrency & status (FP-07, FP-09)', () => {
+  test('two concurrent redeems credit exactly one reward', async () => {
+    const c = await authService.signupClient({ pseudonym: 'RaceC' });
+    const p = await authService.signupPartner({
+      ownerName: 'R', companyName: 'Race Co', address: '3 rue test, 45000 Orleans',
+      email: 'race@test.local', consent: true,
+    });
+    await partnersRepo.setStatus(p.userId, 'approved');
+    for (let i = 0; i < 10; i++) {
+      const { token } = await loyaltyService.issueQrForClient(c.userId);
+      await loyaltyService.scan({ qrToken: token, partnerId: p.userId });
+    }
+    const [t1, t2] = await Promise.all([
+      loyaltyService.issueQrForClient(c.userId),
+      loyaltyService.issueQrForClient(c.userId),
+    ]);
+    const results = await Promise.all([
+      loyaltyService.redeem({ qrToken: t1.token, partnerId: p.userId }),
+      loyaltyService.redeem({ qrToken: t2.token, partnerId: p.userId }),
+    ]);
+    const successes = results.filter((r) => r.ok).length;
+    expect(successes).toBe(1);
+    const balance = await loyaltyRepo.balanceOf(c.userId, p.userId);
+    expect(balance).toBe(0);
+    // Journal must match the balance: exactly one redeem row of -10.
+    const driver = require('../src/db/driver');
+    const redeems = await driver.query(
+      "SELECT delta FROM scans WHERE client_id = ? AND partner_id = ? AND kind = 'redeem'",
+      [c.userId, p.userId],
+    );
+    expect(redeems).toHaveLength(1);
+    expect(redeems[0].delta).toBe(-10);
+  });
+
+  test('pending partner cannot scan (FP-09)', async () => {
+    const c = await authService.signupClient({ pseudonym: 'PendClient' });
+    const p = await authService.signupPartner({
+      ownerName: 'P', companyName: 'Pend Co', address: '4 rue test, 45000 Orleans',
+      email: 'pend-scan@test.local', consent: true,
+    });
+    const { token } = await loyaltyService.issueQrForClient(c.userId);
+    const r = await loyaltyService.scan({ qrToken: token, partnerId: p.userId });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('partner_not_approved');
+  });
+
+  test('suspended partner cannot scan (FP-09)', async () => {
+    const c = await authService.signupClient({ pseudonym: 'SuspClient' });
+    const p = await authService.signupPartner({
+      ownerName: 'S', companyName: 'Susp Co', address: '5 rue test, 45000 Orleans',
+      email: 'susp-scan@test.local', consent: true,
+    });
+    await partnersRepo.setStatus(p.userId, 'approved');
+    await partnersRepo.setStatus(p.userId, 'suspended');
+    const { token } = await loyaltyService.issueQrForClient(c.userId);
+    const r = await loyaltyService.scan({ qrToken: token, partnerId: p.userId });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('partner_not_approved');
   });
 });
 

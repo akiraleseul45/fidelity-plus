@@ -49,6 +49,34 @@ module.exports = {
     );
   },
 
+  /**
+   * Atomically redeem `threshold` points. The `points >= ?` guard in the
+   * WHERE clause makes the check-and-subtract a single operation, so two
+   * concurrent redeems can never both succeed (audit FP-07): the second
+   * sees the already-decremented row and matches 0 rows.
+   *
+   * Returns true if exactly one row was decremented (+ journals the redeem),
+   * false if the balance was insufficient. Must run inside a transaction so
+   * the balance update and the journal row commit together.
+   */
+  async tryRedeem({ clientId, partnerId, threshold }, dbCtx = null) {
+    const ctx = dbCtx || driver;
+    const now = Date.now();
+    const res = await ctx.mutate(
+      `UPDATE loyalty
+       SET points = points - ?, updated_at = ?
+       WHERE client_id = ? AND partner_id = ? AND points >= ?`,
+      [threshold, now, clientId, partnerId, threshold],
+    );
+    if (res.changes !== 1) return false;
+    await ctx.mutate(
+      `INSERT INTO scans (id, client_id, partner_id, delta, kind, nonce, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [newId(), clientId, partnerId, -threshold, 'redeem', null, now],
+    );
+    return true;
+  },
+
   async balanceOf(clientId, partnerId) {
     const row = await driver.queryOne(
       `SELECT points FROM loyalty WHERE client_id = ? AND partner_id = ?`,

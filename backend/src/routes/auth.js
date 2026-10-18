@@ -20,6 +20,7 @@ const {
   readRefreshCreds,
   tokenPayloadFor,
 } = require('../lib/authCookies');
+const { clientIp } = require('../lib/clientIp');
 
 const router = express.Router();
 
@@ -44,7 +45,7 @@ router.post(
         userId,
         role: 'client',
         userAgent: req.get('user-agent'),
-        ip: req.ip,
+        ip: clientIp(req),
       });
 
       if (email) {
@@ -81,7 +82,7 @@ router.post(
         userId: result.userId,
         role: 'client',
         userAgent: req.get('user-agent'),
-        ip: req.ip,
+        ip: clientIp(req),
       });
       setRefreshCookies(req, res, tokens);
       res.json({
@@ -115,8 +116,19 @@ router.post(
 
       const { userId, loginCode } = await authService.signupPartner(req.body);
 
+      // The admin notification never carries the login code (audit FP-11):
+      // the code goes only to the partner.
       Promise.all([
-        sendAdminMail({ ...req.body, code: loginCode, createdAt: Date.now() }),
+        sendAdminMail({
+          ownerName: req.body.ownerName,
+          companyName: req.body.companyName,
+          address: req.body.address,
+          email: req.body.email,
+          phoneFixed: req.body.phoneFixed,
+          phoneMobile: req.body.phoneMobile,
+          imageUrl: req.body.imageUrl,
+          createdAt: Date.now(),
+        }),
         sendProMail({
           ownerName: req.body.ownerName,
           companyName: req.body.companyName,
@@ -152,7 +164,7 @@ router.post(
         userId: result.userId,
         role: 'partner',
         userAgent: req.get('user-agent'),
-        ip: req.ip,
+        ip: clientIp(req),
       });
       setRefreshCookies(req, res, tokens);
       res.json({
@@ -180,7 +192,7 @@ router.post('/refresh', async (req, res, next) => {
       sessionId,
       refreshToken,
       userAgent: req.get('user-agent'),
-      ip: req.ip,
+      ip: clientIp(req),
     });
     if (!result) {
       clearRefreshCookies(req, res);

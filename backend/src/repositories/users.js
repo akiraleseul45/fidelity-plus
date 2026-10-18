@@ -1,4 +1,5 @@
 const driver = require('../db/driver');
+const { hashSecret, newRefreshToken } = require('../lib/crypto');
 
 /**
  * Users repository — async API, driver-agnostic.
@@ -76,11 +77,41 @@ module.exports = {
     await driver.mutate(`UPDATE users SET login_code_hash = ? WHERE id = ?`, [hash, id]);
   },
 
-  /** GDPR soft-delete: keeps the row for audit but wipes personal data. */
+  /**
+   * GDPR deletion (audit FP-05). Keeps the loyalty balances and scan journal
+   * (pseudonymised by the opaque user id) for fraud-prevention and accounting
+   * integrity, but removes or anonymises every piece of personal data:
+   *   - users: deleted_at set, email nulled, login code hash replaced by an
+   *     unusable random value
+   *   - client/partner profiles: identifying fields anonymised
+   *   - sessions: deleted (removes stored IP + user-agent)
+   *   - login_code_lookup: deleted (the code can no longer resolve to anyone)
+   *   - qr_nonces: deleted
+   * A suspended partner also drops out of the public directory and listings.
+   */
   async remove(id) {
-    await driver.mutate(`UPDATE users SET deleted_at = ?, email = NULL WHERE id = ?`, [
-      Date.now(),
-      id,
-    ]);
+    const now = Date.now();
+    const unusableHash = hashSecret(newRefreshToken());
+    await driver.transaction(async (ctx) => {
+      await ctx.mutate(
+        `UPDATE users SET deleted_at = ?, email = NULL, login_code_hash = ? WHERE id = ?`,
+        [now, unusableHash, id],
+      );
+      await ctx.mutate(
+        `UPDATE client_profiles SET pseudonym = 'Compte supprimé' WHERE user_id = ?`,
+        [id],
+      );
+      await ctx.mutate(
+        `UPDATE partner_profiles
+         SET owner_name = 'Compte supprimé', company_name = 'Compte supprimé',
+             address = '—', phone_fixed = NULL, phone_mobile = NULL,
+             image_url = NULL, status = 'suspended', updated_at = ?
+         WHERE user_id = ?`,
+        [now, id],
+      );
+      await ctx.mutate(`DELETE FROM login_code_lookup WHERE user_id = ?`, [id]);
+      await ctx.mutate(`DELETE FROM sessions WHERE user_id = ?`, [id]);
+      await ctx.mutate(`DELETE FROM qr_nonces WHERE client_id = ?`, [id]);
+    });
   },
 };

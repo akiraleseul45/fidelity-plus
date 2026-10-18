@@ -9,7 +9,6 @@ function adminEmailTemplate({
   phoneFixed,
   phoneMobile,
   imageUrl,
-  code,
   createdAt,
 }) {
   const date = new Date(createdAt).toLocaleString('fr-FR', {
@@ -46,7 +45,7 @@ function adminEmailTemplate({
             <td style="padding:32px;">
               <h2 style="margin:0 0 8px;font-size:20px;color:#0B1220;">Un nouveau professionnel s'est inscrit</h2>
               <p style="margin:0 0 24px;color:#5B6472;font-size:14px;line-height:1.5;">
-                Voici les informations transmises via le formulaire d'inscription. Un code de connexion a été automatiquement envoyé à son adresse email.
+                Voici les informations transmises via le formulaire d'inscription. Son code de connexion lui a été envoyé directement et par sécurité n'est pas repris ici. Valide ou refuse ce partenaire depuis l'outil d'administration.
               </p>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #E6E9EF;border-radius:12px;overflow:hidden;">
@@ -58,7 +57,6 @@ function adminEmailTemplate({
                 ${phoneMobile ? row('Téléphone mobile', escapeHtml(phoneMobile)) : ''}
                 ${imageUrl ? row('Image vitrine', `<a href="${escapeHtml(imageUrl)}" style="color:#1E90FF;text-decoration:none;">Voir l'image</a>`) : ''}
                 ${row('Date de la demande', escapeHtml(date))}
-                ${row('Code généré', escapeHtml(code), true)}
               </table>
 
               ${
