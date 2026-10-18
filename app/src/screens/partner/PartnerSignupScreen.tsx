@@ -147,6 +147,16 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
             </Text>
           </Pressable>
 
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Legal', {})}
+            hitSlop={6}
+          >
+            <Text style={{ color: colors.primary, textDecorationLine: 'underline', fontSize: 13 }}>
+              CGU · Politique de confidentialité · Règlement du programme
+            </Text>
+          </Pressable>
+
           {error ? (
             <View
               accessibilityRole="alert"

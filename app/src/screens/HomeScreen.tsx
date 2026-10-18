@@ -49,6 +49,16 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <Button title="Connexion" variant="pillLight" onPress={goLogin} style={{ flex: 1 }} />
           <Button title="Inscription" variant="pillAccent" onPress={goSignup} style={{ flex: 1 }} />
         </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Legal', {})}
+          hitSlop={8}
+          style={styles.legalLink}
+        >
+          <Text style={styles.legalLinkText}>
+            Mentions légales · Confidentialité · CGU
+          </Text>
+        </Pressable>
       </SafeAreaView>
     </View>
   );
@@ -65,6 +75,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   restoBtnText: { ...typography.small, color: colors.onAccent, fontWeight: '700' },
+  legalLink: { alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.sm },
+  legalLinkText: {
+    ...typography.small,
+    color: colors.heroText,
+    opacity: 0.8,
+    textDecorationLine: 'underline',
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   brand: {
     ...typography.h1,

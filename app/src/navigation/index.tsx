@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { LegalScreen } from '../screens/LegalScreen';
 import { ClientLoginScreen } from '../screens/client/ClientLoginScreen';
 import { ClientPartnerDetailScreen } from '../screens/client/ClientPartnerDetailScreen';
 import { ClientPartnersScreen } from '../screens/client/ClientPartnersScreen';
@@ -21,6 +22,7 @@ import { PartnerSignupSuccessScreen } from '../screens/partner/PartnerSignupSucc
 export type RootStackParamList = {
   Home: undefined;
   Profile: undefined;
+  Legal: { doc?: 'mentions' | 'privacy' | 'terms' | 'program' } | undefined;
 
   // Client
   ClientLogin: undefined;
@@ -55,6 +57,7 @@ export const RootNavigator: React.FC = () => {
       >
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mon compte' }} />
+        <Stack.Screen name="Legal" component={LegalScreen} options={{ title: 'Informations légales' }} />
 
         {/* Client */}
         <Stack.Screen name="ClientLogin" component={ClientLoginScreen} options={{ headerShown: false }} />

@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
 import { RootStackParamList } from '../navigation';
@@ -9,10 +9,6 @@ import { useThemeStore } from '../stores/themeStore';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
-
-// Legal URLs come from build-time env so we never ship placeholders.
-const PRIVACY_URL = (process.env.EXPO_PUBLIC_PRIVACY_URL ?? '').trim();
-const TERMS_URL = (process.env.EXPO_PUBLIC_TERMS_URL ?? '').trim();
 
 /**
  * Profile screen — works for both client and partner roles.
@@ -107,25 +103,27 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             définitivement ton compte à tout moment.
           </Text>
 
-          {/* Legal URLs are configured via Expo env so they can be different
-              per environment. If not set, the link is hidden rather than
-              pointing to a placeholder. */}
-          {PRIVACY_URL ? (
-            <Pressable
-              onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
-              style={styles.linkRow}
-            >
-              <Text style={styles.link}>Politique de confidentialité →</Text>
-            </Pressable>
-          ) : null}
-          {TERMS_URL ? (
-            <Pressable
-              onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}
-              style={styles.linkRow}
-            >
-              <Text style={styles.link}>Conditions générales d'utilisation →</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Legal', { doc: 'privacy' })}
+            style={styles.linkRow}
+          >
+            <Text style={styles.link}>Politique de confidentialité →</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Legal', { doc: 'terms' })}
+            style={styles.linkRow}
+          >
+            <Text style={styles.link}>Conditions générales d'utilisation →</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Legal', {})}
+            style={styles.linkRow}
+          >
+            <Text style={styles.link}>Mentions légales →</Text>
+          </Pressable>
         </View>
 
         <View style={styles.section}>

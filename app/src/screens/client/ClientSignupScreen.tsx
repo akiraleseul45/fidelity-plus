@@ -104,6 +104,17 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
             </Text>
           </Pressable>
 
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Legal', {})}
+            hitSlop={6}
+            style={{ marginTop: spacing.xs }}
+          >
+            <Text style={styles.legalNote}>
+              En créant un compte, tu acceptes les CGU et la politique de confidentialité.
+            </Text>
+          </Pressable>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <View style={{ marginTop: spacing.lg }}>
@@ -213,4 +224,5 @@ const styles = StyleSheet.create({
   checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkmark: { color: '#fff', fontSize: 14, fontWeight: '800' },
   consentText: { ...typography.small, color: colors.text, flex: 1, lineHeight: 18 },
+  legalNote: { ...typography.small, color: colors.primary, textDecorationLine: 'underline' },
 });
