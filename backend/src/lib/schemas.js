@@ -15,7 +15,13 @@ const Email = z
 
 const Pseudonym = z.string().trim().min(2, 'pseudonyme trop court').max(40, 'pseudonyme trop long');
 
-const ClientCode = z.string().trim().regex(/^\d{5}$/, 'code à 5 chiffres requis');
+// Accept the new 8-char code (A-HJ-NP-Z2-9) AND the legacy 5-digit code so
+// existing accounts keep working (audit FP-03). Uppercased before matching.
+const ClientCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^(\d{5}|[A-HJ-NP-Z2-9]{8})$/, 'code de connexion invalide');
 
 const PartnerCode = z
   .string()
@@ -43,6 +49,12 @@ const clientSignupSchema = z.object({
 
 const clientLoginSchema = z.object({
   code: ClientCode,
+});
+
+// Recovery: email only; the server rotates the code and emails a new one
+// (audit FP-03). Always answered 200 to avoid account enumeration.
+const clientRecoverSchema = z.object({
+  email: Email,
 });
 
 const partnerSignupSchema = z.object({
@@ -95,6 +107,7 @@ const updateRewardSchema = z.object({
 module.exports = {
   clientSignupSchema,
   clientLoginSchema,
+  clientRecoverSchema,
   partnerSignupSchema,
   partnerLoginSchema,
   refreshSchema,

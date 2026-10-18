@@ -64,8 +64,8 @@ export const ClientSignupScreen: React.FC<Props> = ({ navigation }) => {
             </View>
             <Text style={styles.title}>Créer un compte{'\n'}Fidelity Plus</Text>
             <Text style={styles.sub}>
-              On te génère un code à 5 chiffres. Note-le bien — c'est lui qui te servira à te
-              connecter.
+              On te génère un code de connexion. Note-le bien — c'est lui qui te servira à te
+              connecter. Avec un email, tu pourras le récupérer si tu l'oublies.
             </Text>
           </View>
 

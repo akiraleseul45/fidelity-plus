@@ -95,17 +95,24 @@ function newRefreshToken() {
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L confusion
 
-function newClientCode() {
-  // 5 digits, never starting with 0.
-  return String(crypto.randomInt(10000, 100000));
-}
-
-function newPartnerCode() {
+function randomCode(len) {
   let out = '';
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < len; i++) {
     out += CODE_CHARS[crypto.randomInt(0, CODE_CHARS.length)];
   }
   return out;
+}
+
+// Client codes are now 8 chars from a 32-symbol alphabet (~40 bits, ~1.1e12
+// combinations) instead of 5 digits (90k) — audit FP-03. Existing 5-digit
+// codes keep working (login accepts both formats); only new/rotated codes use
+// the stronger form, so no migration is required.
+function newClientCode() {
+  return randomCode(8);
+}
+
+function newPartnerCode() {
+  return randomCode(8);
 }
 
 // ---------- JWT helpers ----------
