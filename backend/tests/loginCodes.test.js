@@ -21,16 +21,23 @@ describe('login codes — uniqueness', () => {
     expect(success).toBe(false);
   });
 
-  test('200 signups produce 200 unique codes', async () => {
-    // Reduced from 1000 to keep CI time reasonable post-async-migration.
-    const seen = new Set();
-    for (let i = 0; i < 200; i++) {
-      const { loginCode } = await authService.signupClient({ pseudonym: `P${i}` });
-      expect(seen.has(loginCode)).toBe(false);
-      seen.add(loginCode);
-    }
-    expect(seen.size).toBe(200);
-  });
+  test(
+    '200 signups produce 200 unique codes',
+    async () => {
+      // Reduced from 1000 to keep CI time reasonable post-async-migration.
+      // Each signup is a multi-statement transaction + 2 scrypt hashes; on a
+      // networked Postgres (CI) that is far slower than in-process SQLite, so
+      // this heavy test gets a generous timeout.
+      const seen = new Set();
+      for (let i = 0; i < 200; i++) {
+        const { loginCode } = await authService.signupClient({ pseudonym: `P${i}` });
+        expect(seen.has(loginCode)).toBe(false);
+        seen.add(loginCode);
+      }
+      expect(seen.size).toBe(200);
+    },
+    60000,
+  );
 });
 
 describe('login codes — login flow', () => {
