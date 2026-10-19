@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { ReportProblemButton } from '../components/ReportProblemButton';
 import { Screen } from '../components/Screen';
 import { RootStackParamList } from '../navigation';
+import { confirm } from '../stores/confirmStore';
 import { useApp } from '../store/AppContext';
 import { useThemeStore } from '../stores/themeStore';
 import { colors, radius, spacing, typography } from '../theme/theme';
@@ -26,30 +27,25 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const setThemePref = useThemeStore((s) => s.setPreference);
   const [deleting, setDeleting] = useState(false);
 
-  const confirm = async (title: string, msg: string) => {
-    if (Platform.OS === 'web') {
-      return typeof window !== 'undefined' ? window.confirm(`${title}\n\n${msg}`) : false;
-    }
-    return new Promise<boolean>((resolve) =>
-      Alert.alert(title, msg, [
-        { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Confirmer', style: 'destructive', onPress: () => resolve(true) },
-      ]),
-    );
-  };
-
   const onLogout = async () => {
-    if (!(await confirm('Se déconnecter ?', 'Tu devras retaper ton code à la prochaine visite.')))
-      return;
+    const ok = await confirm({
+      title: 'Se déconnecter ?',
+      message: 'Tu devras retaper ton code à la prochaine visite.',
+      confirmLabel: 'Se déconnecter',
+      danger: true,
+    });
+    if (!ok) return;
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
   const onDelete = async () => {
-    const ok = await confirm(
-      'Supprimer mon compte ?',
-      'Cette action est IRRÉVERSIBLE. Tes points et ton historique seront perdus.',
-    );
+    const ok = await confirm({
+      title: 'Supprimer mon compte ?',
+      message: 'Cette action est IRRÉVERSIBLE. Tes points et ton historique seront perdus.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    });
     if (!ok) return;
     setDeleting(true);
     const res = await deleteAccount();

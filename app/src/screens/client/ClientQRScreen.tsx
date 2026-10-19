@@ -2,8 +2,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -15,6 +13,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { RootStackParamList } from '../../navigation';
+import { confirm } from '../../stores/confirmStore';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
@@ -96,18 +95,13 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
   }, [client, refreshQr, refreshClientLoyalty]);
 
   const onLogout = async () => {
-    const confirm =
-      Platform.OS === 'web'
-        ? typeof window !== 'undefined'
-          ? window.confirm('Se déconnecter ? Tu devras retaper ton code.')
-          : true
-        : await new Promise<boolean>((resolve) =>
-            Alert.alert('Déconnexion', 'Tu devras retaper ton code.', [
-              { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Se déconnecter', style: 'destructive', onPress: () => resolve(true) },
-            ]),
-          );
-    if (!confirm) return;
+    const ok = await confirm({
+      title: 'Se déconnecter ?',
+      message: 'Tu devras retaper ton code à la prochaine visite.',
+      confirmLabel: 'Se déconnecter',
+      danger: true,
+    });
+    if (!ok) return;
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };

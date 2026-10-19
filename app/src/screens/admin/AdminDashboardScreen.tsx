@@ -39,6 +39,7 @@ import {
   apiAdminUpdateClient,
   apiAdminUpdatePartner,
 } from '../../store/api';
+import { confirm } from '../../stores/confirmStore';
 import { useAuthStore } from '../../stores/authStore';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
@@ -46,13 +47,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AdminDashboard'>;
 type Tab = 'partners' | 'clients' | 'reports';
 
 function confirmAction(message: string): Promise<boolean> {
-  if (Platform.OS === 'web') return Promise.resolve(window.confirm(message));
-  return new Promise((resolve) =>
-    Alert.alert('Confirmer', message, [
-      { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
-      { text: 'Confirmer', style: 'destructive', onPress: () => resolve(true) },
-    ]),
-  );
+  return confirm({ title: 'Confirmer', message, confirmLabel: 'Confirmer', danger: true });
 }
 
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {

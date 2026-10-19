@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ConfirmHost } from './src/components/ConfirmHost';
 import { PhoneFrame } from './src/components/PhoneFrame';
 import { RootNavigator } from './src/navigation';
 import { bootstrapApp } from './src/stores/bootstrap';
@@ -54,6 +55,7 @@ export default function App() {
         <Gate>
           <RootNavigator />
         </Gate>
+        <ConfirmHost />
       </SafeAreaProvider>
     </PhoneFrame>
   );

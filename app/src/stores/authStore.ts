@@ -157,11 +157,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   async logout() {
-    await apiLogout();
-    // Wipe the previous user's loyalty data so it can't leak into the next
-    // session on this device (audit FP-22).
+    // Clear the local session FIRST so the UI logs out instantly even if the
+    // network is slow or offline. Also wipes the previous user's loyalty data
+    // so it can't leak into the next session on this device (audit FP-22).
     useLoyaltyStore.getState().clear();
     set({ user: null });
+    // Best-effort server-side session revoke; never block logout on it.
+    try {
+      await apiLogout();
+    } catch {
+      /* ignore — local session already cleared */
+    }
   },
 
   async deleteAccount() {
