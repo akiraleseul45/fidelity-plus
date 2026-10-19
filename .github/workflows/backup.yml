@@ -34,10 +34,15 @@ jobs:
     steps:
       - name: Install postgresql-client 17
         run: |
+          set -euo pipefail
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          # The runner ships pg_dump 16 at /usr/bin; the v17 binary lives here.
+          # Fail loudly if it is not the expected major version.
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          echo "PG17_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
 
       - name: Dump, encrypt and upload
         env:
@@ -54,7 +59,9 @@ jobs:
           FILE="fidelity-${STAMP}.sql.gz.enc"
 
           # Logical dump of the public schema only (the app owns public).
-          pg_dump --no-owner --no-privileges --schema=public \
+          # Use the v17 binary explicitly (server is Postgres 17; the runner's
+          # default pg_dump is v16 and refuses a newer server).
+          "${PG17_BIN}/pg_dump" --no-owner --no-privileges --schema=public \
             --format=plain "$BACKUP_DATABASE_URL" \
             | gzip -9 \
             | openssl enc -aes-256-cbc -pbkdf2 -salt \
