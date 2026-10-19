@@ -24,10 +24,13 @@ export const ClientLoginScreen: React.FC<Props> = ({ navigation }) => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const onChange = (v: string) => setCode(v.replace(/\D/g, '').slice(0, 5));
+  // Accept the new 8-char code (letters+digits) AND legacy 5-digit codes
+  // (audit FP-03). Uppercase, strip to the safe alphabet, max 8.
+  const onChange = (v: string) => setCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8));
+  const codeValid = code.length === 5 || code.length === 8;
 
   const submit = async () => {
-    if (code.length !== 5 || loading) return;
+    if (!codeValid || loading) return;
     setLoading(true);
     try {
       const res = await loginClient(code);
@@ -63,19 +66,24 @@ export const ClientLoginScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Code à 5 chiffres</Text>
+            <Text style={styles.label}>Ton code de connexion</Text>
             <TextInput
               value={code}
               onChangeText={onChange}
-              placeholder="•••••"
+              placeholder="••••••••"
               placeholderTextColor={colors.textMuted}
-              keyboardType="number-pad"
-              maxLength={5}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={8}
               autoFocus
               style={styles.input}
               onSubmitEditing={submit}
+              accessibilityLabel="Code de connexion"
             />
-            <Text style={styles.hintRight}>Le code généré à l'inscription</Text>
+            <Text style={styles.hintRight}>Le code reçu à l'inscription (ou par email)</Text>
+            <Pressable onPress={() => navigation.navigate('ClientRecover')} hitSlop={8}>
+              <Text style={styles.recoverLink}>Code perdu ?</Text>
+            </Pressable>
           </View>
 
           <View style={{ marginTop: spacing.xl }}>
@@ -83,7 +91,7 @@ export const ClientLoginScreen: React.FC<Props> = ({ navigation }) => {
               title="Connexion"
               variant="primary"
               onPress={submit}
-              disabled={code.length !== 5 || loading}
+              disabled={!codeValid || loading}
               loading={loading}
             />
           </View>
@@ -134,6 +142,14 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'right',
     marginTop: 4,
+  },
+  recoverLink: {
+    ...typography.small,
+    color: colors.primary,
+    fontWeight: '600',
+    textAlign: 'right',
+    marginTop: spacing.sm,
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',

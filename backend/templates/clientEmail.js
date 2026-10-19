@@ -26,7 +26,7 @@ function clientEmailTemplate({ pseudonym, code }) {
             <td style="padding:36px 32px 24px;">
               <h2 style="margin:0 0 12px;font-size:22px;color:#0B1220;">Bienvenue ${escapeHtml(pseudonym)} ! 🎉</h2>
               <p style="margin:0 0 16px;color:#5B6472;font-size:15px;line-height:1.6;">
-                Ton compte Fidelity Plus est créé. Voici ton code personnel à 5 chiffres :
+                Ton compte Fidelity Plus est créé. Voici ton code de connexion personnel :
               </p>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0;">
@@ -46,7 +46,7 @@ function clientEmailTemplate({ pseudonym, code }) {
               <ol style="margin:0 0 24px;padding-left:20px;color:#5B6472;font-size:15px;line-height:1.7;">
                 <li>Ouvre l'application <strong style="color:#0B1220;">Fidelity Plus</strong></li>
                 <li>Touche <strong style="color:#0B1220;">Connexion</strong></li>
-                <li>Saisis ton code à 5 chiffres ci-dessus</li>
+                <li>Saisis ton code de connexion ci-dessus</li>
                 <li>Montre ton QR code chez les partenaires pour cumuler des points</li>
               </ol>
 

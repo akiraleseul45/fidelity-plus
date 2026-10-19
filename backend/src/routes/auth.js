@@ -5,14 +5,20 @@ const clientsRepo = require('../repositories/clients');
 const partnersRepo = require('../repositories/partners');
 const { validate } = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
-const { authLimiter, signupLimiter } = require('../middleware/rateLimit');
+const { authLimiter, signupLimiter, recoverLimiter } = require('../middleware/rateLimit');
 const {
   clientSignupSchema,
   clientLoginSchema,
+  clientRecoverSchema,
   partnerSignupSchema,
   partnerLoginSchema,
 } = require('../lib/schemas');
-const { sendAdminMail, sendProMail, sendClientWelcomeMail } = require('../../mailer');
+const {
+  sendAdminMail,
+  sendProMail,
+  sendClientWelcomeMail,
+  sendClientRecoveryMail,
+} = require('../../mailer');
 const logger = require('../lib/logger');
 const {
   setRefreshCookies,
@@ -89,6 +95,32 @@ router.post(
         success: true,
         user: { id: profile.id, role: 'client', pseudonym: profile.pseudonym, email: profile.email },
         ...tokenPayloadFor(req, tokens),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Recover a lost client code: rotate it and email the new one. Always 200,
+// whether or not an account matches, to avoid enumeration (audit FP-03).
+router.post(
+  '/client/recover',
+  recoverLimiter,
+  validate(clientRecoverSchema),
+  async (req, res, next) => {
+    try {
+      const result = await authService.rotateClientCodeByEmail({ email: req.body.email });
+      if (result && result.loginCode) {
+        sendClientRecoveryMail({
+          pseudonym: result.pseudonym,
+          email: result.email,
+          code: result.loginCode,
+        }).catch((err) => logger.warn({ err: err.message }, '[auth] recovery email failed'));
+      }
+      res.json({
+        success: true,
+        message: 'Si un compte est associé à cet email, un nouveau code vient d’être envoyé.',
       });
     } catch (err) {
       next(err);

@@ -40,7 +40,8 @@ module.exports = {
     return row?.userId || null;
   },
 
-  async releaseAllForUser(userId) {
-    await driver.mutate(`DELETE FROM login_code_lookup WHERE user_id = ?`, [userId]);
+  async releaseAllForUser(userId, dbCtx = null) {
+    const ctx = dbCtx || driver;
+    await ctx.mutate(`DELETE FROM login_code_lookup WHERE user_id = ?`, [userId]);
   },
 };

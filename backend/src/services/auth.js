@@ -122,6 +122,35 @@ async function signupPartner(input) {
   return { userId, loginCode: finalCode };
 }
 
+// ---------- Recovery: rotate the client's code and return the new one ----------
+//
+// We can't resend the old code (it's only stored hashed/HMAC'd — audit FP-03).
+// Recovery therefore ROTATES the code: a new unique code is generated, the old
+// one stops working, and the caller emails the new code to the registered
+// address. Returns null when no client account matches (the route still
+// answers 200 to avoid enumeration).
+async function rotateClientCodeByEmail({ email }) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const user = await usersRepo.byEmailAndRole(normalized, 'client');
+  if (!user) return null;
+
+  let finalCode;
+  await driver.transaction(async (ctx) => {
+    await loginCodesRepo.releaseAllForUser(user.id, ctx);
+    finalCode = await generateAndClaimCode(newClientCode, user.id, ctx);
+    await ctx.mutate(`UPDATE users SET login_code_hash = ? WHERE id = ?`, [
+      hashSecret(finalCode),
+      user.id,
+    ]);
+    // Any existing sessions keep working (the refresh token is independent of
+    // the login code); the user can still revoke them by logging out.
+  });
+
+  const profile = await clientsRepo.full(user.id);
+  return { userId: user.id, email: normalized, loginCode: finalCode, pseudonym: profile?.pseudonym };
+}
+
 // ---------- Login (O(1) lookup + constant-ish time) ----------
 
 const DUMMY_HASH = hashSecret('dummy-for-timing-balance');
@@ -182,6 +211,7 @@ module.exports = {
   signupClient,
   signupPartner,
   loginByCode,
+  rotateClientCodeByEmail,
   issueTokens,
   refresh,
   logout,

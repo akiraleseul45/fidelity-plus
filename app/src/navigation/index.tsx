@@ -5,6 +5,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LegalScreen } from '../screens/LegalScreen';
 import { ClientLoginScreen } from '../screens/client/ClientLoginScreen';
+import { ClientRecoverScreen } from '../screens/client/ClientRecoverScreen';
 import { ClientPartnerDetailScreen } from '../screens/client/ClientPartnerDetailScreen';
 import { ClientPartnersScreen } from '../screens/client/ClientPartnersScreen';
 import { ClientQRScreen } from '../screens/client/ClientQRScreen';
@@ -26,6 +27,7 @@ export type RootStackParamList = {
 
   // Client
   ClientLogin: undefined;
+  ClientRecover: undefined;
   ClientSignup: undefined;
   ClientSignupSuccess: { code: string; pseudonym: string; email?: string };
   ClientQR: undefined;
@@ -61,6 +63,7 @@ export const RootNavigator: React.FC = () => {
 
         {/* Client */}
         <Stack.Screen name="ClientLogin" component={ClientLoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="ClientRecover" component={ClientRecoverScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientSignup" component={ClientSignupScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientSignupSuccess" component={ClientSignupSuccessScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientQR" component={ClientQRScreen} options={{ headerShown: false }} />

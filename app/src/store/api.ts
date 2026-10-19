@@ -240,6 +240,15 @@ export async function apiClientLogin(code: string): Promise<AuthResponse> {
   }, { auth: false });
 }
 
+// Recover a lost client code: the server rotates it and emails a new one
+// (audit FP-03). Always resolves success to avoid account enumeration.
+export async function apiClientRecover(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  return fetchJson('/api/auth/client/recover', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  }, { auth: false });
+}
+
 export async function apiPartnerSignup(body: {
   ownerName: string;
   companyName: string;

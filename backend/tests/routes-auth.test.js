@@ -66,7 +66,7 @@ describe('routes — POST /api/auth/client/signup', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.user.role).toBe('client');
-    expect(res.body.loginCode).toMatch(/^\d{5}$/);
+    expect(res.body.loginCode).toMatch(/^[A-HJ-NP-Z2-9]{8}$/); // 8-char client code (FP-03)
     expect(res.body.accessToken).toMatch(/^eyJ/);
     expect(res.body.sessionId).toMatch(/^[0-9a-f-]{36}$/);
     expect(res.body.refreshToken.length).toBeGreaterThan(20);
@@ -96,6 +96,38 @@ describe('routes — POST /api/auth/client/login', () => {
     const r = await request(app).post('/api/auth/client/login').send({ code: validCode });
     expect(r.status).toBe(200);
     expect(r.body.user.pseudonym).toBe('LoginTest');
+  });
+});
+
+describe('routes — POST /api/auth/client/recover (FP-03)', () => {
+  test('rotates the code; old code then fails; unknown email still 200', async () => {
+    const signup = await request(app)
+      .post('/api/auth/client/signup')
+      .send({ pseudonym: 'RecRoute', email: 'recroute@test.local', consent: true });
+    expect(signup.status).toBe(200);
+
+    const r = await request(app)
+      .post('/api/auth/client/recover')
+      .send({ email: 'recroute@test.local' });
+    expect(r.status).toBe(200);
+    expect(r.body.success).toBe(true);
+
+    // The old code no longer logs in (it was rotated).
+    const login = await request(app)
+      .post('/api/auth/client/login')
+      .send({ code: signup.body.loginCode });
+    expect(login.status).toBe(401);
+
+    // Unknown email → still 200 (no account enumeration).
+    const r2 = await request(app)
+      .post('/api/auth/client/recover')
+      .send({ email: 'unknown-xyz@test.local' });
+    expect(r2.status).toBe(200);
+  });
+
+  test('malformed email → 400', async () => {
+    const r = await request(app).post('/api/auth/client/recover').send({ email: 'not-an-email' });
+    expect(r.status).toBe(400);
   });
 });
 

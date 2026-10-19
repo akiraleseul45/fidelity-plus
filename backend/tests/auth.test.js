@@ -15,7 +15,7 @@ describe('authService — client signup & login', () => {
       consent: true,
     });
     expect(userId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(loginCode).toMatch(/^\d{5}$/);
+    expect(loginCode).toMatch(/^[A-HJ-NP-Z2-9]{8}$/); // new 8-char client code (FP-03)
     const profile = await clientsRepo.full(userId);
     expect(profile.pseudonym).toBe('Alice');
     expect(profile.email).toBe('alice@test.local');
@@ -32,6 +32,47 @@ describe('authService — client signup & login', () => {
     await authService.signupClient({ pseudonym: 'Carol' });
     const r = await authService.loginByCode({ code: '00000', role: 'client' });
     expect(r).toBeNull();
+  });
+
+  test('legacy 5-digit codes still log in (FP-03 back-compat)', async () => {
+    const driver = require('../src/db/driver');
+    const { newId, hashSecret, hmacCode } = require('../src/lib/crypto');
+    const id = newId();
+    const code = '12345';
+    await driver.mutate(
+      `INSERT INTO users (id, role, email, login_code_hash, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [id, 'client', null, hashSecret(code), Date.now()],
+    );
+    await driver.mutate(
+      `INSERT INTO client_profiles (user_id, pseudonym, created_at) VALUES (?, ?, ?)`,
+      [id, 'LegacyUser', Date.now()],
+    );
+    await driver.mutate(
+      `INSERT INTO login_code_lookup (code_hmac, user_id) VALUES (?, ?)`,
+      [hmacCode(code), id],
+    );
+    const r = await authService.loginByCode({ code: '12345', role: 'client' });
+    expect(r).toEqual({ userId: id });
+  });
+
+  test('recovery rotates the code: old fails, new works, account preserved (FP-03)', async () => {
+    const { userId, loginCode } = await authService.signupClient({
+      pseudonym: 'Rec',
+      email: 'rec@test.local',
+      consent: true,
+    });
+    expect(await authService.loginByCode({ code: loginCode, role: 'client' })).toEqual({ userId });
+    const res = await authService.rotateClientCodeByEmail({ email: 'rec@test.local' });
+    expect(res.userId).toBe(userId);
+    expect(res.loginCode).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+    expect(res.loginCode).not.toBe(loginCode);
+    expect(await authService.loginByCode({ code: loginCode, role: 'client' })).toBeNull();
+    expect(await authService.loginByCode({ code: res.loginCode, role: 'client' })).toEqual({ userId });
+  });
+
+  test('recovery for an unknown email returns null (no enumeration)', async () => {
+    const res = await authService.rotateClientCodeByEmail({ email: 'nobody-xyz@test.local' });
+    expect(res).toBeNull();
   });
 
   test('issueTokens returns access + refresh', async () => {

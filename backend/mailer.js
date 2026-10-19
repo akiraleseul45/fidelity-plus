@@ -3,6 +3,7 @@ const { Resend } = require('resend');
 const { adminEmailTemplate } = require('./templates/adminEmail');
 const { proEmailTemplate } = require('./templates/proEmail');
 const { clientEmailTemplate } = require('./templates/clientEmail');
+const { clientRecoveryTemplate } = require('./templates/clientRecoveryEmail');
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
@@ -194,4 +195,20 @@ async function sendClientWelcomeMail(payload) {
   });
 }
 
-module.exports = { sendAdminMail, sendProMail, sendClientWelcomeMail, verifyTransport };
+async function sendClientRecoveryMail(payload) {
+  // No BCC: the code must never be copied to the admin (audit FP-11).
+  return sendMail({
+    to: payload.email,
+    subject: `Fidelity Plus — ton nouveau code de connexion`,
+    html: clientRecoveryTemplate(payload),
+    label: 'client recovery email',
+  });
+}
+
+module.exports = {
+  sendAdminMail,
+  sendProMail,
+  sendClientWelcomeMail,
+  sendClientRecoveryMail,
+  verifyTransport,
+};

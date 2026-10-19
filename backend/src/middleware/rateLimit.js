@@ -50,6 +50,14 @@ const signupLimiter = make({
   message: { success: false, error: "Trop d'inscriptions depuis cette adresse. Réessaie plus tard." },
 });
 
+// Code recovery rotates the account's code, so it must be hard to abuse
+// (audit FP-03): a few attempts per hour per IP.
+const recoverLimiter = make({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  message: { success: false, error: 'Trop de demandes. Réessaie dans une heure.' },
+});
+
 const qrLimiter = make({
   windowMs: 60 * 1000,
   limit: 30,
@@ -67,4 +75,4 @@ const generalLimiter = make({
   limit: 120,
 });
 
-module.exports = { authLimiter, signupLimiter, qrLimiter, scanLimiter, generalLimiter };
+module.exports = { authLimiter, signupLimiter, recoverLimiter, qrLimiter, scanLimiter, generalLimiter };
