@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   AuthUser,
+  apiAdminLogin,
   apiClientLogin,
   apiClientSignup,
   apiDeleteMe,
@@ -43,8 +44,13 @@ type AuthState = {
     phoneFixed?: string;
     phoneMobile?: string;
     imageUrl?: string;
+    category?: string;
+    serviceMode?: string;
   }) => Promise<{ ok: true; loginCode: string } | { ok: false; error: string }>;
   loginPartner: (code: string) => Promise<
+    { ok: true; user: AuthUser } | { ok: false; error: string }
+  >;
+  loginAdmin: (code: string) => Promise<
     { ok: true; user: AuthUser } | { ok: false; error: string }
   >;
   logout: () => Promise<void>;
@@ -124,6 +130,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (res.accessToken) {
       // Web: only accessToken is returned (refresh lives in httpOnly cookie).
       // Native: sessionId + refreshToken come in the body.
+      await saveTokens({
+        accessToken: res.accessToken,
+        sessionId: res.sessionId,
+        refreshToken: res.refreshToken,
+      });
+    }
+    set({ user: res.user });
+    return { ok: true as const, user: res.user };
+  },
+
+  async loginAdmin(code) {
+    const res = await apiAdminLogin(code);
+    if (!res.success || !res.user) {
+      return { ok: false as const, error: res.error || 'Code invalide.' };
+    }
+    if (res.accessToken) {
       await saveTokens({
         accessToken: res.accessToken,
         sessionId: res.sessionId,

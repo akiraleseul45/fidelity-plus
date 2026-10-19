@@ -13,6 +13,13 @@ import {
 import { AddressAutocomplete } from '../../components/AddressAutocomplete';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
+import { Select } from '../../components/Select';
+import {
+  CATEGORIES,
+  CategoryValue,
+  SERVICE_MODES,
+  ServiceModeValue,
+} from '../../constants/business';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
@@ -28,6 +35,8 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
   const [phoneFixed, setPhoneFixed] = useState('');
   const [phoneMobile, setPhoneMobile] = useState('');
   const [email, setEmail] = useState('');
+  const [category, setCategory] = useState<CategoryValue | null>(null);
+  const [serviceMode, setServiceMode] = useState<ServiceModeValue | null>(null);
   const [loading, setLoading] = useState(false);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +46,8 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
     companyName.trim().length > 1 &&
     address.trim().length > 4 &&
     /.+@.+\..+/.test(email) &&
+    !!category &&
+    !!serviceMode &&
     consent;
 
   const submit = async () => {
@@ -52,6 +63,8 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
       phoneFixed: phoneFixed.trim() || undefined,
       phoneMobile: phoneMobile.trim() || undefined,
       email: email.trim(),
+      category: category || undefined,
+      serviceMode: serviceMode || undefined,
     });
     setLoading(false);
 
@@ -86,6 +99,24 @@ export const PartnerSignupScreen: React.FC<Props> = ({ navigation }) => {
 
           <Field label="Nom du domaine" value={ownerName} onChange={setOwnerName} />
           <Field label="Nom de l'entreprise" value={companyName} onChange={setCompanyName} />
+
+          <Select
+            label="Catégorie de métier"
+            placeholder="Choisis ta catégorie"
+            value={category}
+            options={CATEGORIES}
+            onChange={setCategory}
+            accessibilityLabel="Catégorie de métier"
+          />
+          <Select
+            label="Mode de service"
+            placeholder="Sur place, à domicile…"
+            value={serviceMode}
+            options={SERVICE_MODES}
+            onChange={setServiceMode}
+            accessibilityLabel="Mode de service"
+          />
+
           <View style={{ gap: 6 }}>
             <Text style={styles.label}>Adresse</Text>
             <AddressAutocomplete

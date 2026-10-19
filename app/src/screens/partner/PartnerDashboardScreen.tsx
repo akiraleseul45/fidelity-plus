@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useEffect } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
@@ -11,6 +11,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PartnerDashboard'>;
 export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const { user, partnerLoyalty, refreshPartnerLoyalty } = useApp();
   const partner = user?.role === 'partner' ? user : null;
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     refreshPartnerLoyalty();
@@ -25,15 +26,20 @@ export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
   }
 
   const readyCount = partnerLoyalty.filter((i) => i.points >= partner.rewardThreshold).length;
+  const q = query.trim().toLowerCase();
+  const visibleClients = q
+    ? partnerLoyalty.filter((i) => i.pseudonym.toLowerCase().includes(q))
+    : partnerLoyalty;
 
   return (
     <Screen padded={false}>
       <FlatList
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
-        data={partnerLoyalty}
+        data={visibleClients}
         keyExtractor={(e) => e.clientId}
         refreshing={false}
         onRefresh={refreshPartnerLoyalty}
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
             <Text style={styles.h1}>{partnerLoyalty.length} clients</Text>
@@ -43,6 +49,23 @@ export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
                 ? 'Gratuit seulement'
                 : `−${partner.rewardValue ?? 10}%`}
             </Text>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="🔍 Rechercher un client par pseudo…"
+              placeholderTextColor={colors.textMuted}
+              style={styles.search}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Rechercher un client"
+            />
+            {q && visibleClients.length !== partnerLoyalty.length ? (
+              <Text style={styles.sub}>
+                {visibleClients.length} résultat{visibleClients.length > 1 ? 's' : ''} sur{' '}
+                {partnerLoyalty.length}
+              </Text>
+            ) : null}
             {readyCount > 0 ? (
               <View style={styles.hintBox}>
                 <Text style={styles.hintText}>
@@ -61,7 +84,11 @@ export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>Aucun client pour l'instant — scanne pour commencer.</Text>
+          <Text style={styles.empty}>
+            {q
+              ? `Aucun client ne correspond à « ${query.trim()} ».`
+              : "Aucun client pour l'instant — scanne pour commencer."}
+          </Text>
         }
         renderItem={({ item }) => {
           const ready = item.points >= partner.rewardThreshold;
@@ -89,6 +116,15 @@ export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   h1: { ...typography.h2, color: colors.text },
   sub: { ...typography.small, color: colors.textMuted, marginTop: 4 },
+  search: {
+    ...typography.body,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
   empty: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl },
   row: {
     flexDirection: 'row',

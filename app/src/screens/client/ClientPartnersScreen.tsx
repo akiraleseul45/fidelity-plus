@@ -1,12 +1,29 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { PartnerMap } from '../../components/PartnerMap';
 import { Screen } from '../../components/Screen';
+import {
+  CATEGORIES,
+  categoryEmoji,
+  categoryLabel,
+  serviceModeLabel,
+} from '../../constants/business';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
+
+type ModeFilter = 'all' | 'sur_place' | 'a_domicile';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ClientPartners'>;
 
@@ -20,6 +37,20 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
   const [userLoc, setUserLoc] = useState<UserLoc | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [cats, setCats] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<ModeFilter>('all');
+
+  const toggleCat = (v: string) =>
+    setCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
+
+  // Only show category chips for categories that actually exist in the list,
+  // so the client isn't offered empty filters.
+  const availableCats = CATEGORIES.filter((c) => partners.some((p) => p.category === c.value));
 
   // Helper: get points for the current client at a given partner.
   const pointsFor = (partnerId: string) =>
@@ -35,6 +66,11 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
       const haystack = `${p.companyName} ${p.ownerName} ${p.address}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
+    if (cats.size && (!p.category || !cats.has(p.category))) return false;
+    if (mode === 'sur_place' && !(p.serviceMode === 'sur_place' || p.serviceMode === 'les_deux'))
+      return false;
+    if (mode === 'a_domicile' && !(p.serviceMode === 'a_domicile' || p.serviceMode === 'les_deux'))
+      return false;
     if (filter === 'with_points') return pointsFor(p.id) > 0;
     if (filter === 'ready') return pointsFor(p.id) >= p.rewardThreshold;
     return true;
@@ -91,7 +127,7 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
           </View>
           <ErrorBoundary>
             <PartnerMap
-              partners={partners}
+              partners={filteredPartners}
               onPressMarker={goToDetail}
               height={220}
               userLocation={userLoc}
@@ -146,6 +182,42 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
             />
           </View>
 
+          {/* Service mode filter */}
+          <View style={styles.chipsRow}>
+            <FilterChip label="📍 Tous lieux" active={mode === 'all'} onPress={() => setMode('all')} />
+            <FilterChip
+              label="🏠 Sur place"
+              active={mode === 'sur_place'}
+              onPress={() => setMode('sur_place')}
+            />
+            <FilterChip
+              label="🚗 À domicile"
+              active={mode === 'a_domicile'}
+              onPress={() => setMode('a_domicile')}
+            />
+          </View>
+
+          {/* Category filter (only categories present in the list) */}
+          {availableCats.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.sm, paddingVertical: 2 }}
+            >
+              {availableCats.map((c) => (
+                <FilterChip
+                  key={c.value}
+                  label={`${c.emoji} ${c.label}`}
+                  active={cats.has(c.value)}
+                  onPress={() => toggleCat(c.value)}
+                />
+              ))}
+              {cats.size > 0 ? (
+                <FilterChip label="✕ Effacer" active={false} onPress={() => setCats(new Set())} />
+              ) : null}
+            </ScrollView>
+          ) : null}
+
           <Text style={styles.sectionTitle}>
             {filteredPartners.length} partenaire{filteredPartners.length > 1 ? 's' : ''}
             {filteredPartners.length !== partners.length ? ` sur ${partners.length}` : ''}
@@ -174,6 +246,12 @@ export const ClientPartnersScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.name} numberOfLines={1}>
                     {item.companyName}
                   </Text>
+                  {item.category ? (
+                    <Text style={styles.cat} numberOfLines={1}>
+                      {categoryEmoji(item.category)} {categoryLabel(item.category)}
+                      {item.serviceMode ? ` · ${serviceModeLabel(item.serviceMode)}` : ''}
+                    </Text>
+                  ) : null}
                   {item.ownerName ? (
                     <Text style={styles.owner} numberOfLines={1}>
                       👤 {item.ownerName}
@@ -292,6 +370,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   name: { ...typography.h3, color: colors.text },
+  cat: { ...typography.small, color: colors.primary, fontWeight: '700' },
   owner: { ...typography.small, color: colors.text, fontWeight: '600' },
   addr: { ...typography.small, color: colors.textMuted, lineHeight: 18 },
   phone: { ...typography.small, color: colors.textMuted },

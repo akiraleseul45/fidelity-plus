@@ -25,6 +25,11 @@ async function requireAuth(req, res, next) {
     if (!user) {
       return res.status(401).json({ success: false, error: 'Compte introuvable.' });
     }
+    if (user.suspended_at) {
+      return res
+        .status(403)
+        .json({ success: false, error: 'Compte désactivé. Contacte le support.' });
+    }
 
     req.user = { id: user.id, role: user.role };
     next();

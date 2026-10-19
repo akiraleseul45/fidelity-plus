@@ -26,7 +26,7 @@ module.exports = {
 
   async byId(id) {
     return driver.queryOne(
-      `SELECT id, role, email, failed_attempts, locked_until, created_at, deleted_at
+      `SELECT id, role, email, failed_attempts, locked_until, created_at, deleted_at, suspended_at
        FROM users WHERE id = ? AND deleted_at IS NULL`,
       [id],
     );
@@ -75,6 +75,38 @@ module.exports = {
 
   async updateLoginCodeHash(id, hash) {
     await driver.mutate(`UPDATE users SET login_code_hash = ? WHERE id = ?`, [hash, id]);
+  },
+
+  async countByRole(role) {
+    const row = await driver.queryOne(
+      `SELECT COUNT(*) AS n FROM users WHERE role = ? AND deleted_at IS NULL`,
+      [role],
+    );
+    return Number(row?.n || 0);
+  },
+
+  // Admin: set or clear suspension. suspended=true blocks login + usage and
+  // hides a partner from the public directory. Returns true if a row changed.
+  async setSuspended(id, suspended) {
+    const res = await driver.mutate(
+      `UPDATE users SET suspended_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      [suspended ? Date.now() : null, id],
+    );
+    return res.changes === 1;
+  },
+
+  // Admin listing of all clients with their profile + a points summary.
+  async adminListClients() {
+    return driver.query(
+      `SELECT u.id, u.email, u.created_at AS "createdAt", u.suspended_at AS "suspendedAt",
+              c.pseudonym,
+              COALESCE((SELECT SUM(l.points) FROM loyalty l WHERE l.client_id = u.id), 0) AS "totalPoints",
+              (SELECT COUNT(*) FROM loyalty l WHERE l.client_id = u.id) AS "partnersCount"
+       FROM users u
+       INNER JOIN client_profiles c ON c.user_id = u.id
+       WHERE u.role = 'client' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`,
+    );
   },
 
   /**

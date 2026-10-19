@@ -2,10 +2,12 @@ const {
   newId,
   newClientCode,
   newPartnerCode,
+  newAdminCode,
   hashSecret,
   verifySecret,
   signAccessToken,
 } = require('../lib/crypto');
+const { DEFAULT_CATEGORY, DEFAULT_SERVICE_MODE } = require('../lib/business');
 const driver = require('../db/driver');
 const usersRepo = require('../repositories/users');
 const clientsRepo = require('../repositories/clients');
@@ -91,10 +93,10 @@ async function signupPartner(input) {
     await ctx.mutate(
       `INSERT INTO partner_profiles (
         user_id, owner_name, company_name, address, lat, lng,
-        phone_fixed, phone_mobile, image_url,
+        phone_fixed, phone_mobile, image_url, category, service_mode,
         reward_threshold, reward_type, reward_value,
         status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         input.ownerName.trim(),
@@ -105,6 +107,8 @@ async function signupPartner(input) {
         input.phoneFixed?.trim() || null,
         input.phoneMobile?.trim() || null,
         input.imageUrl?.trim() || null,
+        input.category || DEFAULT_CATEGORY,
+        input.serviceMode || DEFAULT_SERVICE_MODE,
         10,
         'free_meal',
         null,
@@ -175,7 +179,35 @@ async function loginByCode({ code, role }) {
     return null;
   }
   await usersRepo.clearFailedAttempts(userId);
+  // A deactivated account authenticates correctly but cannot proceed.
+  if (user.suspended_at) {
+    return { suspended: true };
+  }
   return { userId };
+}
+
+// ---------- Admin provisioning + login ----------
+
+// Create an admin account with a strong 12-char code. The plaintext code is
+// returned ONCE (never stored) so the operator can save it. Uses the same
+// hashed/HMAC'd storage as client/partner codes.
+async function createAdmin({ email = null } = {}) {
+  const userId = newId();
+  let finalCode;
+  await driver.transaction(async (ctx) => {
+    const initialCode = newAdminCode();
+    await ctx.mutate(
+      `INSERT INTO users (id, role, email, login_code_hash, created_at, consent_given_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, 'admin', email ? email.trim().toLowerCase() : null, hashSecret(initialCode), Date.now(), Date.now()],
+    );
+    finalCode = await generateAndClaimCode(newAdminCode, userId, ctx);
+    await ctx.mutate(`UPDATE users SET login_code_hash = ? WHERE id = ?`, [
+      hashSecret(finalCode),
+      userId,
+    ]);
+  });
+  return { userId, loginCode: finalCode };
 }
 
 // ---------- Token issuance ----------
@@ -210,6 +242,7 @@ async function logout(sessionId) {
 module.exports = {
   signupClient,
   signupPartner,
+  createAdmin,
   loginByCode,
   rotateClientCodeByEmail,
   issueTokens,

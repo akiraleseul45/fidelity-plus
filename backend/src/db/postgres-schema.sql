@@ -17,13 +17,14 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS users (
   id              TEXT PRIMARY KEY,
-  role            TEXT NOT NULL CHECK (role IN ('client', 'partner')),
+  role            TEXT NOT NULL CHECK (role IN ('client', 'partner', 'admin')),
   email           TEXT,
   login_code_hash TEXT NOT NULL,
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   locked_until    BIGINT,
   created_at      BIGINT NOT NULL,
   deleted_at      BIGINT,
+  suspended_at    BIGINT,
   consent_given_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
@@ -51,6 +52,8 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   phone_fixed      TEXT,
   phone_mobile     TEXT,
   image_url        TEXT,
+  category         TEXT,
+  service_mode     TEXT CHECK (service_mode IN ('sur_place', 'a_domicile', 'les_deux')),
   reward_threshold INTEGER NOT NULL DEFAULT 10,
   reward_type      TEXT    NOT NULL DEFAULT 'free_meal' CHECK (reward_type IN ('free_meal', 'discount')),
   reward_value     INTEGER,
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   created_at       BIGINT NOT NULL,
   updated_at       BIGINT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_partner_status ON partner_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_partner_status   ON partner_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_partner_category ON partner_profiles(category);
 
 CREATE TABLE IF NOT EXISTS loyalty (
   client_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

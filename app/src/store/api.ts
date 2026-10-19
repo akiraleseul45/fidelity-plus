@@ -192,6 +192,7 @@ async function fetchJson<T = any>(
 
 export type AuthUser =
   | { id: string; role: 'client'; pseudonym: string; email?: string | null }
+  | { id: string; role: 'admin'; email?: string | null }
   | {
       id: string;
       role: 'partner';
@@ -203,6 +204,8 @@ export type AuthUser =
       phoneFixed?: string | null;
       phoneMobile?: string | null;
       imageUrl?: string | null;
+      category?: string | null;
+      serviceMode?: string | null;
       email?: string | null;
       rewardThreshold: number;
       rewardType: 'free_meal' | 'discount';
@@ -259,12 +262,99 @@ export async function apiPartnerSignup(body: {
   phoneFixed?: string;
   phoneMobile?: string;
   imageUrl?: string;
+  category?: string;
+  serviceMode?: string;
   consent: boolean;
 }): Promise<{ success: boolean; userId?: string; loginCode?: string; message?: string; error?: string }> {
   return fetchJson('/api/auth/partner/signup', {
     method: 'POST',
     body: JSON.stringify(body),
   }, { auth: false });
+}
+
+// ---------- Admin ----------
+
+export async function apiAdminLogin(code: string): Promise<AuthResponse> {
+  return fetchJson<AuthResponse>('/api/auth/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  }, { auth: false });
+}
+
+export type AdminPartner = {
+  id: string;
+  email: string | null;
+  createdAt?: number;
+  suspendedAt: number | null;
+  ownerName: string;
+  companyName: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  phoneFixed: string | null;
+  phoneMobile: string | null;
+  imageUrl: string | null;
+  category: string | null;
+  serviceMode: string | null;
+  rewardThreshold: number;
+  rewardType: 'free_meal' | 'discount';
+  rewardValue: number | null;
+  status: 'pending' | 'approved' | 'suspended';
+};
+
+export type AdminClient = {
+  id: string;
+  email: string | null;
+  pseudonym: string;
+  createdAt: number;
+  suspendedAt: number | null;
+  totalPoints: number;
+  partnersCount: number;
+};
+
+export async function apiAdminStats(): Promise<{
+  success: boolean;
+  stats?: { clients: number; partners: number; pendingPartners: number };
+  error?: string;
+}> {
+  return fetchJson('/api/admin/stats', { method: 'GET' });
+}
+
+export async function apiAdminPartners(status?: string): Promise<{ success: boolean; items?: AdminPartner[]; error?: string }> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return fetchJson(`/api/admin/partners${q}`, { method: 'GET' });
+}
+
+export async function apiAdminClients(): Promise<{ success: boolean; items?: AdminClient[]; error?: string }> {
+  return fetchJson('/api/admin/clients', { method: 'GET' });
+}
+
+export async function apiAdminUpdatePartner(id: string, fields: Partial<Record<string, any>>): Promise<{ success: boolean; partner?: AdminPartner; error?: string }> {
+  return fetchJson(`/api/admin/partners/${id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function apiAdminSetPartnerStatus(id: string, status: string): Promise<{ success: boolean; partner?: AdminPartner; error?: string }> {
+  return fetchJson(`/api/admin/partners/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+}
+
+export async function apiAdminSuspendPartner(id: string, suspended: boolean): Promise<{ success: boolean; partner?: AdminPartner; error?: string }> {
+  return fetchJson(`/api/admin/partners/${id}/suspend`, { method: 'POST', body: JSON.stringify({ suspended }) });
+}
+
+export async function apiAdminDeletePartner(id: string): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/partners/${id}`, { method: 'DELETE' });
+}
+
+export async function apiAdminUpdateClient(id: string, fields: { pseudonym?: string; email?: string | null }): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function apiAdminSuspendClient(id: string, suspended: boolean): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/clients/${id}/suspend`, { method: 'POST', body: JSON.stringify({ suspended }) });
+}
+
+export async function apiAdminDeleteClient(id: string): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/clients/${id}`, { method: 'DELETE' });
 }
 
 export async function apiPartnerLogin(code: string): Promise<AuthResponse> {
@@ -392,16 +482,25 @@ export type PublicPartner = {
   phoneFixed: string;
   phoneMobile: string;
   imageUrl: string;
+  category: string | null;
+  serviceMode: string | null;
   rewardThreshold: number;
   rewardType: 'free_meal' | 'discount';
   rewardValue: number | null;
   status: string;
 };
 
-export async function apiPartners(): Promise<{
+export async function apiPartners(filters?: {
+  categories?: string[];
+  serviceMode?: string;
+}): Promise<{
   success: boolean;
   items?: PublicPartner[];
   error?: string;
 }> {
-  return fetchJson('/api/partners', { method: 'GET' }, { auth: false });
+  const params = new URLSearchParams();
+  (filters?.categories || []).forEach((c) => params.append('category', c));
+  if (filters?.serviceMode) params.set('serviceMode', filters.serviceMode);
+  const qs = params.toString();
+  return fetchJson(`/api/partners${qs ? `?${qs}` : ''}`, { method: 'GET' }, { auth: false });
 }

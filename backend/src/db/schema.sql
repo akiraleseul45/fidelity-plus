@@ -20,16 +20,17 @@ CREATE TABLE IF NOT EXISTS meta (
 -- is joined (client vs. partner profile).
 CREATE TABLE IF NOT EXISTS users (
   id              TEXT PRIMARY KEY,           -- UUID
-  role            TEXT NOT NULL CHECK (role IN ('client', 'partner')),
+  role            TEXT NOT NULL CHECK (role IN ('client', 'partner', 'admin')),
   email           TEXT,                       -- nullable for clients without email
-  -- Login secret: 5 digits for client, 8 chars for partner. Stored hashed
-  -- (bcrypt) to mitigate database leaks. Never compare in clear.
+  -- Login secret: 5/8 chars client, 8 chars partner, 12 chars admin. Stored
+  -- hashed (scrypt) to mitigate database leaks. Never compare in clear.
   login_code_hash TEXT NOT NULL,
   -- Track failed login attempts to rate-limit per-account.
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   locked_until    INTEGER,                    -- unix ms timestamp, NULL if unlocked
   created_at      INTEGER NOT NULL,
   deleted_at      INTEGER,                    -- GDPR soft-delete; row kept for audit
+  suspended_at    INTEGER,                    -- admin deactivation; NULL = active
   consent_given_at INTEGER                    -- GDPR explicit consent timestamp
 );
 
@@ -81,6 +82,10 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   phone_fixed      TEXT,
   phone_mobile     TEXT,
   image_url        TEXT,
+  -- Business domain (restaurant, coiffeur, mecanique, …) and how the pro
+  -- serves customers (on-site / at-home / both). Used for client-side filters.
+  category         TEXT,
+  service_mode     TEXT CHECK (service_mode IN ('sur_place', 'a_domicile', 'les_deux')),
   reward_threshold INTEGER NOT NULL DEFAULT 10,
   reward_type      TEXT    NOT NULL DEFAULT 'free_meal' CHECK (reward_type IN ('free_meal', 'discount')),
   reward_value     INTEGER,                   -- percent for discount
@@ -89,7 +94,8 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   updated_at       INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_partner_status ON partner_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_partner_status   ON partner_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_partner_category ON partner_profiles(category);
 
 -- ---------------------------------------------------------------------
 -- LOYALTY  (the actual points balance — server source of truth)

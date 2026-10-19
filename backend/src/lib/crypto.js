@@ -115,6 +115,13 @@ function newPartnerCode() {
   return randomCode(8);
 }
 
+// Admin codes are 12 chars from the 32-symbol alphabet (~60 bits) — much
+// stronger than client/partner codes, since an admin can see and change
+// everything. Still from the no-confusion alphabet so it stays typeable.
+function newAdminCode() {
+  return randomCode(12);
+}
+
 // ---------- JWT helpers ----------
 
 function signAccessToken(payload) {
@@ -151,6 +158,7 @@ module.exports = {
   newRefreshToken,
   newClientCode,
   newPartnerCode,
+  newAdminCode,
   signAccessToken,
   verifyAccessToken,
   signQrToken,

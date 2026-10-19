@@ -12,6 +12,7 @@ const {
   clientRecoverSchema,
   partnerSignupSchema,
   partnerLoginSchema,
+  adminLoginSchema,
 } = require('../lib/schemas');
 const {
   sendAdminMail,
@@ -80,6 +81,9 @@ router.post(
   async (req, res, next) => {
     try {
       const result = await authService.loginByCode({ code: req.body.code, role: 'client' });
+      if (result && result.suspended) {
+        return res.status(403).json({ success: false, error: 'Compte désactivé. Contacte le support.' });
+      }
       if (!result) {
         return res.status(401).json({ success: false, error: 'Code inconnu.' });
       }
@@ -188,6 +192,9 @@ router.post(
   async (req, res, next) => {
     try {
       const result = await authService.loginByCode({ code: req.body.code, role: 'partner' });
+      if (result && result.suspended) {
+        return res.status(403).json({ success: false, error: 'Compte désactivé. Contacte le support.' });
+      }
       if (!result) {
         return res.status(401).json({ success: false, error: 'Code inconnu.' });
       }
@@ -202,6 +209,42 @@ router.post(
       res.json({
         success: true,
         user: { ...profile, role: 'partner' },
+        ...tokenPayloadFor(req, tokens),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// =====================================================================
+// ADMIN
+// =====================================================================
+
+router.post(
+  '/admin/login',
+  authLimiter,
+  validate(adminLoginSchema),
+  async (req, res, next) => {
+    try {
+      const result = await authService.loginByCode({ code: req.body.code, role: 'admin' });
+      if (result && result.suspended) {
+        return res.status(403).json({ success: false, error: 'Compte désactivé.' });
+      }
+      if (!result) {
+        return res.status(401).json({ success: false, error: 'Code inconnu.' });
+      }
+      const admin = await usersRepo.byId(result.userId);
+      const tokens = await authService.issueTokens({
+        userId: result.userId,
+        role: 'admin',
+        userAgent: req.get('user-agent'),
+        ip: clientIp(req),
+      });
+      setRefreshCookies(req, res, tokens);
+      res.json({
+        success: true,
+        user: { id: admin.id, role: 'admin', email: admin.email || null },
         ...tokenPayloadFor(req, tokens),
       });
     } catch (err) {
@@ -256,6 +299,9 @@ router.get('/me', requireAuth, async (req, res, next) => {
     if (user.role === 'client') {
       const profile = await clientsRepo.full(user.id);
       return res.json({ success: true, user: { ...profile, role: 'client' } });
+    }
+    if (user.role === 'admin') {
+      return res.json({ success: true, user: { id: user.id, role: 'admin', email: user.email || null } });
     }
     const profile = await partnersRepo.byId(user.id);
     return res.json({ success: true, user: { ...profile, role: 'partner' } });

@@ -83,7 +83,7 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Row label="Pseudonyme" value={user.pseudonym} />
               <Row label="Email" value={user.email || '—'} />
             </>
-          ) : (
+          ) : user.role === 'partner' ? (
             <>
               <Row label="Nom du domaine" value={user.ownerName} />
               <Row label="Entreprise" value={user.companyName} />
@@ -93,6 +93,8 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Row label="Téléphone mobile" value={user.phoneMobile || '—'} />
               <Row label="Statut" value={user.status} />
             </>
+          ) : (
+            <Row label="Email" value={user.email || '—'} />
           )}
         </View>
 

@@ -4,6 +4,8 @@ import React from 'react';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LegalScreen } from '../screens/LegalScreen';
+import { AdminLoginScreen } from '../screens/admin/AdminLoginScreen';
+import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { ClientLoginScreen } from '../screens/client/ClientLoginScreen';
 import { ClientRecoverScreen } from '../screens/client/ClientRecoverScreen';
 import { ClientPartnerDetailScreen } from '../screens/client/ClientPartnerDetailScreen';
@@ -24,6 +26,10 @@ export type RootStackParamList = {
   Home: undefined;
   Profile: undefined;
   Legal: { doc?: 'mentions' | 'privacy' | 'terms' | 'program' } | undefined;
+
+  // Admin
+  AdminLogin: undefined;
+  AdminDashboard: undefined;
 
   // Client
   ClientLogin: undefined;
@@ -60,6 +66,10 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mon compte' }} />
         <Stack.Screen name="Legal" component={LegalScreen} options={{ title: 'Informations légales' }} />
+
+        {/* Admin */}
+        <Stack.Screen name="AdminLogin" component={AdminLoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} />
 
         {/* Client */}
         <Stack.Screen name="ClientLogin" component={ClientLoginScreen} options={{ headerShown: false }} />

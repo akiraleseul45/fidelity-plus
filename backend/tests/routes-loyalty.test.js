@@ -34,21 +34,39 @@ async function signupClient(name) {
 }
 const partnersRepo = require('../src/repositories/partners');
 
-async function signupPartner(name, email, { approve = true } = {}) {
-  const r = await request(app)
-    .post('/api/auth/partner/signup')
-    .send({
-      ownerName: name,
-      companyName: name + ' Co',
-      address: '5 place du Martroi, 45000 Orleans',
-      lat: 47.9,
-      lng: 1.9,
-      email,
-      consent: true,
-    });
+async function signupPartner(name, email, { approve = true, category, serviceMode } = {}) {
+  const body = {
+    ownerName: name,
+    companyName: name + ' Co',
+    address: '5 place du Martroi, 45000 Orleans',
+    lat: 47.9,
+    lng: 1.9,
+    email,
+    consent: true,
+  };
+  if (category) body.category = category;
+  if (serviceMode) body.serviceMode = serviceMode;
+  const r = await request(app).post('/api/auth/partner/signup').send(body);
   // Partners start 'pending' (audit FP-09); approve for flow tests.
   if (approve && r.body.userId) await partnersRepo.setStatus(r.body.userId, 'approved');
   return r.body;
+}
+
+const ADMIN_TOKEN = 'test-admin-token-xxxxxxxxxxxxxxxx';
+// Provision an admin account via the shared bootstrap token, then log in.
+async function provisionAndLoginAdmin() {
+  const prev = process.env.ADMIN_API_TOKEN;
+  process.env.ADMIN_API_TOKEN = ADMIN_TOKEN;
+  const prov = await request(app)
+    .post('/api/admin/provision')
+    .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+    .send({});
+  const login = await request(app)
+    .post('/api/auth/admin/login')
+    .send({ code: prov.body.loginCode });
+  if (prev !== undefined) process.env.ADMIN_API_TOKEN = prev;
+  else delete process.env.ADMIN_API_TOKEN;
+  return { token: login.body.accessToken, code: prov.body.loginCode };
 }
 async function loginPartner(code) {
   const r = await request(app)
@@ -172,31 +190,119 @@ describe('routes — partner approval gate (FP-09)', () => {
   });
 });
 
-describe('routes — admin partner moderation (FP-09)', () => {
-  test('admin API is 404 when no ADMIN_API_TOKEN configured', async () => {
+describe('routes — partner categories & client filters', () => {
+  test('signup stores category + service mode, returned by /api/partners', async () => {
+    await signupPartner('ResoA', 'resoa@test.local', { category: 'restaurant', serviceMode: 'sur_place' });
+    const r = await request(app).get('/api/partners');
+    const found = (r.body.items || []).find((i) => i.companyName === 'ResoA Co');
+    expect(found).toBeDefined();
+    expect(found.category).toBe('restaurant');
+    expect(found.serviceMode).toBe('sur_place');
+  });
+
+  test('category filter narrows the list', async () => {
+    await signupPartner('CoifA', 'coifa@test.local', { category: 'coiffeur', serviceMode: 'a_domicile' });
+    const r = await request(app).get('/api/partners?category=coiffeur');
+    const items = r.body.items || [];
+    expect(items.every((i) => i.category === 'coiffeur')).toBe(true);
+    expect(items.find((i) => i.companyName === 'CoifA Co')).toBeDefined();
+  });
+
+  test('serviceMode filter: a_domicile excludes sur_place-only, includes les_deux', async () => {
+    await signupPartner('OnSiteOnly', 'onsite@test.local', { category: 'mecanique', serviceMode: 'sur_place' });
+    await signupPartner('BothModes', 'both@test.local', { category: 'mecanique', serviceMode: 'les_deux' });
+    const r = await request(app).get('/api/partners?serviceMode=a_domicile');
+    const names = (r.body.items || []).map((i) => i.companyName);
+    expect(names).toContain('BothModes Co');
+    expect(names).not.toContain('OnSiteOnly Co');
+  });
+
+  test('bad category value is ignored (no filter)', async () => {
+    const r = await request(app).get('/api/partners?category=not_a_real_cat');
+    expect(r.status).toBe(200);
+  });
+});
+
+describe('routes — admin account', () => {
+  test('provision is 404 when ADMIN_API_TOKEN not configured', async () => {
     const prev = process.env.ADMIN_API_TOKEN;
     delete process.env.ADMIN_API_TOKEN;
-    const r = await request(app)
-      .put('/api/admin/partners/some-id/status')
-      .send({ status: 'approved' });
+    const r = await request(app).post('/api/admin/provision').send({});
     expect(r.status).toBe(404);
     if (prev !== undefined) process.env.ADMIN_API_TOKEN = prev;
   });
 
-  test('operator can approve a partner with a valid token', async () => {
-    process.env.ADMIN_API_TOKEN = 'test-admin-token-xxxxxxxxxxxxxxxx';
-    const p = await signupPartner('ApproveMe', 'approveme@test.local', { approve: false });
+  test('provision requires the shared token, returns a 12-char code', async () => {
+    const prev = process.env.ADMIN_API_TOKEN;
+    process.env.ADMIN_API_TOKEN = ADMIN_TOKEN;
     const bad = await request(app)
-      .put(`/api/admin/partners/${p.userId}/status`)
+      .post('/api/admin/provision')
       .set('Authorization', 'Bearer wrong-token-xxxxxxxxxxxxxxxxxxxx')
-      .send({ status: 'approved' });
+      .send({});
     expect(bad.status).toBe(401);
     const ok = await request(app)
+      .post('/api/admin/provision')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({});
+    expect(ok.status).toBe(200);
+    expect(ok.body.loginCode).toMatch(/^[A-HJ-NP-Z2-9]{12}$/);
+    if (prev !== undefined) process.env.ADMIN_API_TOKEN = prev;
+    else delete process.env.ADMIN_API_TOKEN;
+  });
+
+  test('admin can log in and approve a pending partner', async () => {
+    const admin = await provisionAndLoginAdmin();
+    expect(admin.token).toMatch(/^eyJ/);
+    const p = await signupPartner('ApproveMe', 'approveme@test.local', { approve: false });
+    const ok = await request(app)
       .put(`/api/admin/partners/${p.userId}/status`)
-      .set('Authorization', 'Bearer test-admin-token-xxxxxxxxxxxxxxxx')
+      .set('Authorization', `Bearer ${admin.token}`)
       .send({ status: 'approved' });
     expect(ok.status).toBe(200);
     expect(ok.body.partner.status).toBe('approved');
-    delete process.env.ADMIN_API_TOKEN;
+  });
+
+  test('non-admin token is refused by admin management (403)', async () => {
+    const c = await signupClient('NotAdmin');
+    const r = await request(app)
+      .get('/api/admin/partners')
+      .set('Authorization', `Bearer ${c.accessToken}`);
+    expect(r.status).toBe(403);
+  });
+
+  test('admin lists clients, can edit and suspend; suspended client is blocked', async () => {
+    const admin = await provisionAndLoginAdmin();
+    const c = await signupClient('ManageMe');
+    // list clients
+    const list = await request(app)
+      .get('/api/admin/clients')
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect(list.status).toBe(200);
+    const me = (list.body.items || []).find((i) => i.pseudonym === 'ManageMe');
+    expect(me).toBeDefined();
+    // suspend
+    const susp = await request(app)
+      .post(`/api/admin/clients/${me.id}/suspend`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ suspended: true });
+    expect(susp.status).toBe(200);
+    // suspended client can no longer use its access token
+    const blocked = await request(app)
+      .get('/api/loyalty/me')
+      .set('Authorization', `Bearer ${c.accessToken}`);
+    expect(blocked.status).toBe(403);
+  });
+
+  test('admin can delete a partner (anonymised, gone from listing)', async () => {
+    const admin = await provisionAndLoginAdmin();
+    const p = await signupPartner('DeleteMe', 'deleteme@test.local');
+    const del = await request(app)
+      .delete(`/api/admin/partners/${p.userId}`)
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect(del.status).toBe(200);
+    const list = await request(app)
+      .get('/api/admin/partners')
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect((list.body.items || []).find((i) => i.id === p.userId)).toBeUndefined();
   });
 });

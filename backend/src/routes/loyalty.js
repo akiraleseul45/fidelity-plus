@@ -104,7 +104,19 @@ router.put(
   validate(updateRewardSchema),
   async (req, res, next) => {
     try {
-      await partnersRepo.updateRewardSettings(req.user.id, req.body);
+      const { rewardThreshold, rewardType, rewardValue, category, serviceMode } = req.body;
+      await partnersRepo.updateRewardSettings(req.user.id, {
+        rewardThreshold,
+        rewardType,
+        rewardValue,
+      });
+      // Optionally update the partner's own category / service mode.
+      const selfFields = {};
+      if (category !== undefined) selfFields.category = category;
+      if (serviceMode !== undefined) selfFields.serviceMode = serviceMode;
+      if (Object.keys(selfFields).length) {
+        await partnersRepo.updateProfileFields(req.user.id, selfFields);
+      }
       const partner = await partnersRepo.byId(req.user.id);
       res.json({ success: true, partner });
     } catch (err) {

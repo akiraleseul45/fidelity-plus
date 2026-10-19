@@ -41,7 +41,12 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         <View style={styles.center}>
-          <Text style={styles.brand}>Fidelity Plus</Text>
+          <Pressable
+            onLongPress={() => navigation.navigate('AdminLogin')}
+            delayLongPress={700}
+          >
+            <Text style={styles.brand}>Fidelity Plus</Text>
+          </Pressable>
           <Text style={styles.tagline}>Ta carte de fidélité, partout.</Text>
         </View>
 
