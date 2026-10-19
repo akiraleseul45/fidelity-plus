@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React from 'react';
+import React, { useRef } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
@@ -26,6 +26,24 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate(isPartner ? 'PartnerScanner' : 'PartnerAuthHome');
   };
 
+  // Discreet admin entry. Long-press is unreliable on mobile web (it triggers
+  // text selection), so the primary gesture is 5 quick taps on the title.
+  const tapCount = useRef(0);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openAdmin = () => navigation.navigate('AdminLogin');
+  const onBrandTap = () => {
+    tapCount.current += 1;
+    if (tapTimer.current) clearTimeout(tapTimer.current);
+    if (tapCount.current >= 5) {
+      tapCount.current = 0;
+      openAdmin();
+      return;
+    }
+    tapTimer.current = setTimeout(() => {
+      tapCount.current = 0;
+    }, 1500);
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
@@ -42,10 +60,14 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.center}>
           <Pressable
-            onLongPress={() => navigation.navigate('AdminLogin')}
-            delayLongPress={700}
+            onPress={onBrandTap}
+            onLongPress={openAdmin}
+            delayLongPress={600}
+            accessibilityLabel="Fidelity Plus"
           >
-            <Text style={styles.brand}>Fidelity Plus</Text>
+            <Text selectable={false} style={styles.brand}>
+              Fidelity Plus
+            </Text>
           </Pressable>
           <Text style={styles.tagline}>Ta carte de fidélité, partout.</Text>
         </View>
