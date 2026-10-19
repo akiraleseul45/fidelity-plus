@@ -12,6 +12,7 @@ function buildApp() {
   const loyaltyRoutes = require('../src/routes/loyalty');
   const partnerRoutes = require('../src/routes/partners');
   const adminRoutes = require('../src/routes/admin');
+  const reportRoutes = require('../src/routes/reports');
   const app = express();
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
   app.use(cors({ origin: '*' }));
@@ -20,6 +21,7 @@ function buildApp() {
   app.use('/api/loyalty', loyaltyRoutes);
   app.use('/api/partners', partnerRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/reports', reportRoutes);
   app.use((_err, _req, res, _next) => res.status(500).json({ success: false }));
   return app;
 }
@@ -304,5 +306,66 @@ describe('routes — admin account', () => {
       .get('/api/admin/partners')
       .set('Authorization', `Bearer ${admin.token}`);
     expect((list.body.items || []).find((i) => i.id === p.userId)).toBeUndefined();
+  });
+});
+
+describe('routes — problem reports', () => {
+  test('authenticated client can send a report; it reaches the admin', async () => {
+    const c = await signupClient('Reporter');
+    const r = await request(app)
+      .post('/api/reports')
+      .set('Authorization', `Bearer ${c.accessToken}`)
+      .send({ message: 'Un bug sur mon QR code', context: 'ClientQR' });
+    expect(r.status).toBe(200);
+    expect(r.body.id).toBeTruthy();
+
+    const admin = await provisionAndLoginAdmin();
+    const list = await request(app)
+      .get('/api/admin/reports')
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect(list.status).toBe(200);
+    const mine = (list.body.items || []).find((x) => x.id === r.body.id);
+    expect(mine).toBeDefined();
+    expect(mine.role).toBe('client');
+    expect(mine.reporterName).toBe('Reporter');
+    expect(mine.status).toBe('open');
+  });
+
+  test('report requires auth (401) and a non-trivial message (400)', async () => {
+    const anon = await request(app).post('/api/reports').send({ message: 'hello world' });
+    expect(anon.status).toBe(401);
+    const c = await signupClient('Reporter2');
+    const short = await request(app)
+      .post('/api/reports')
+      .set('Authorization', `Bearer ${c.accessToken}`)
+      .send({ message: 'hi' });
+    expect(short.status).toBe(400);
+  });
+
+  test('admin can resolve and delete a report', async () => {
+    const p = await signupPartner('ProReporter', 'proreporter@test.local');
+    const pl = await loginPartner(p.loginCode);
+    const r = await request(app)
+      .post('/api/reports')
+      .set('Authorization', `Bearer ${pl.accessToken}`)
+      .send({ message: 'Le scanner ne marche pas' });
+    expect(r.status).toBe(200);
+
+    const admin = await provisionAndLoginAdmin();
+    const resolve = await request(app)
+      .patch(`/api/admin/reports/${r.body.id}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ status: 'resolved' });
+    expect(resolve.status).toBe(200);
+
+    const openList = await request(app)
+      .get('/api/admin/reports?status=open')
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect((openList.body.items || []).find((x) => x.id === r.body.id)).toBeUndefined();
+
+    const del = await request(app)
+      .delete(`/api/admin/reports/${r.body.id}`)
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect(del.status).toBe(200);
   });
 });

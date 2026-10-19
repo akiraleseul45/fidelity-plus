@@ -7,11 +7,13 @@ const authService = require('../services/auth');
 const partnersRepo = require('../repositories/partners');
 const clientsRepo = require('../repositories/clients');
 const usersRepo = require('../repositories/users');
+const reportsRepo = require('../repositories/reports');
 const {
   adminPartnerUpdateSchema,
   adminClientUpdateSchema,
   adminSuspendSchema,
   adminStatusSchema,
+  reportStatusSchema,
 } = require('../lib/schemas');
 const logger = require('../lib/logger');
 
@@ -48,14 +50,15 @@ const adminOnly = [requireAuth, requireRole('admin'), generalLimiter];
 // ---- Dashboard stats ----
 router.get('/stats', adminOnly, async (req, res, next) => {
   try {
-    const [clients, partners] = await Promise.all([
+    const [clients, partners, openReports] = await Promise.all([
       usersRepo.countByRole('client'),
       usersRepo.countByRole('partner'),
+      reportsRepo.countOpen(),
     ]);
     const pendingList = await partnersRepo.listByStatus('pending');
     res.json({
       success: true,
-      stats: { clients, partners, pendingPartners: pendingList.length },
+      stats: { clients, partners, pendingPartners: pendingList.length, openReports },
     });
   } catch (err) {
     next(err);
@@ -167,6 +170,37 @@ router.delete('/clients/:id', adminOnly, async (req, res, next) => {
     if (!existing) return res.status(404).json({ success: false, error: 'Client introuvable.' });
     await usersRepo.remove(req.params.id);
     logger.info({ clientId: req.params.id }, '[admin] client deleted');
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---- Reports (problem reports) ----
+router.get('/reports', adminOnly, async (req, res, next) => {
+  try {
+    const status = typeof req.query.status === 'string' ? req.query.status : null;
+    const items = await reportsRepo.listAll(status === 'open' || status === 'resolved' ? status : null);
+    res.json({ success: true, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/reports/:id', adminOnly, validate(reportStatusSchema), async (req, res, next) => {
+  try {
+    const ok = await reportsRepo.setStatus(req.params.id, req.body.status);
+    if (!ok) return res.status(404).json({ success: false, error: 'Signalement introuvable.' });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/reports/:id', adminOnly, async (req, res, next) => {
+  try {
+    const ok = await reportsRepo.remove(req.params.id);
+    if (!ok) return res.status(404).json({ success: false, error: 'Signalement introuvable.' });
     res.json({ success: true });
   } catch (err) {
     next(err);

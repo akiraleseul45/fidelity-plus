@@ -314,7 +314,7 @@ export type AdminClient = {
 
 export async function apiAdminStats(): Promise<{
   success: boolean;
-  stats?: { clients: number; partners: number; pendingPartners: number };
+  stats?: { clients: number; partners: number; pendingPartners: number; openReports: number };
   error?: string;
 }> {
   return fetchJson('/api/admin/stats', { method: 'GET' });
@@ -355,6 +355,40 @@ export async function apiAdminSuspendClient(id: string, suspended: boolean): Pro
 
 export async function apiAdminDeleteClient(id: string): Promise<{ success: boolean; error?: string }> {
   return fetchJson(`/api/admin/clients/${id}`, { method: 'DELETE' });
+}
+
+// ---------- Reports ----------
+
+export type AdminReport = {
+  id: string;
+  userId: string | null;
+  role: string | null;
+  message: string;
+  context: string | null;
+  status: 'open' | 'resolved';
+  createdAt: number;
+  resolvedAt: number | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  reporterDeleted: number;
+};
+
+// A signed-in client/partner sends a problem report to the admin.
+export async function apiCreateReport(message: string, context?: string): Promise<{ success: boolean; id?: string; message?: string; error?: string }> {
+  return fetchJson('/api/reports', { method: 'POST', body: JSON.stringify({ message, context }) });
+}
+
+export async function apiAdminReports(status?: 'open' | 'resolved'): Promise<{ success: boolean; items?: AdminReport[]; error?: string }> {
+  const q = status ? `?status=${status}` : '';
+  return fetchJson(`/api/admin/reports${q}`, { method: 'GET' });
+}
+
+export async function apiAdminSetReportStatus(id: string, status: 'open' | 'resolved'): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export async function apiAdminDeleteReport(id: string): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/admin/reports/${id}`, { method: 'DELETE' });
 }
 
 export async function apiPartnerLogin(code: string): Promise<AuthResponse> {

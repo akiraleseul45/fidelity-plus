@@ -31,6 +31,7 @@ const authRoutes = require('./src/routes/auth');
 const loyaltyRoutes = require('./src/routes/loyalty');
 const partnerRoutes = require('./src/routes/partners');
 const adminRoutes = require('./src/routes/admin');
+const reportRoutes = require('./src/routes/reports');
 const healthRoutes = require('./src/routes/health');
 
 const PORT = process.env.PORT || 3000;
@@ -95,6 +96,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/reports', reportRoutes);
 
 // ---------------------------------------------------------------------
 // Error handlers

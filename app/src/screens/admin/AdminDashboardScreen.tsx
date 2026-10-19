@@ -24,11 +24,15 @@ import { RootStackParamList } from '../../navigation';
 import {
   AdminClient,
   AdminPartner,
+  AdminReport,
   apiAdminClients,
   apiAdminDeleteClient,
   apiAdminDeletePartner,
+  apiAdminDeleteReport,
   apiAdminPartners,
+  apiAdminReports,
   apiAdminSetPartnerStatus,
+  apiAdminSetReportStatus,
   apiAdminStats,
   apiAdminSuspendClient,
   apiAdminSuspendPartner,
@@ -39,7 +43,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { colors, radius, spacing, typography } from '../../theme/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdminDashboard'>;
-type Tab = 'partners' | 'clients';
+type Tab = 'partners' | 'clients' | 'reports';
 
 function confirmAction(message: string): Promise<boolean> {
   if (Platform.OS === 'web') return Promise.resolve(window.confirm(message));
@@ -56,7 +60,8 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const [tab, setTab] = useState<Tab>('partners');
   const [partners, setPartners] = useState<AdminPartner[]>([]);
   const [clients, setClients] = useState<AdminClient[]>([]);
-  const [stats, setStats] = useState<{ clients: number; partners: number; pendingPartners: number } | null>(null);
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [stats, setStats] = useState<{ clients: number; partners: number; pendingPartners: number; openReports: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [editPartner, setEditPartner] = useState<AdminPartner | null>(null);
@@ -64,10 +69,16 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, p, c] = await Promise.all([apiAdminStats(), apiAdminPartners(), apiAdminClients()]);
+    const [s, p, c, rep] = await Promise.all([
+      apiAdminStats(),
+      apiAdminPartners(),
+      apiAdminClients(),
+      apiAdminReports(),
+    ]);
     if (s.success && s.stats) setStats(s.stats);
     if (p.success && p.items) setPartners(p.items);
     if (c.success && c.items) setClients(c.items);
+    if (rep.success && rep.items) setReports(rep.items);
     // A 403 means the session is no longer an admin — bounce home.
     if ((p as any).error && /réservé|Authentification|Token/i.test((p as any).error)) {
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
@@ -112,6 +123,17 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
     load();
   };
 
+  // ---- Report actions ----
+  const toggleReport = async (r: AdminReport) => {
+    await apiAdminSetReportStatus(r.id, r.status === 'open' ? 'resolved' : 'open');
+    load();
+  };
+  const deleteReport = async (r: AdminReport) => {
+    if (!(await confirmAction('Supprimer ce signalement ?'))) return;
+    await apiAdminDeleteReport(r.id);
+    load();
+  };
+
   const q = query.trim().toLowerCase();
   const visiblePartners = q
     ? partners.filter((p) => `${p.companyName} ${p.ownerName} ${p.email ?? ''} ${p.address}`.toLowerCase().includes(q))
@@ -119,6 +141,9 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const visibleClients = q
     ? clients.filter((c) => `${c.pseudonym} ${c.email ?? ''}`.toLowerCase().includes(q))
     : clients;
+  const visibleReports = q
+    ? reports.filter((r) => `${r.message} ${r.reporterName ?? ''}`.toLowerCase().includes(q))
+    : reports;
 
   return (
     <Screen padded={false}>
@@ -134,12 +159,18 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
           <Stat n={stats.partners} label="Pros" />
           <Stat n={stats.clients} label="Clients" />
           <Stat n={stats.pendingPartners} label="En attente" highlight={stats.pendingPartners > 0} />
+          <Stat n={stats.openReports} label="Signalements" highlight={stats.openReports > 0} />
         </View>
       ) : null}
 
       <View style={styles.tabs}>
-        <Tab label="Professionnels" active={tab === 'partners'} onPress={() => setTab('partners')} />
+        <Tab label="Pros" active={tab === 'partners'} onPress={() => setTab('partners')} />
         <Tab label="Clients" active={tab === 'clients'} onPress={() => setTab('clients')} />
+        <Tab
+          label={`Signalements${stats?.openReports ? ` (${stats.openReports})` : ''}`}
+          active={tab === 'reports'}
+          onPress={() => setTab('reports')}
+        />
       </View>
 
       <View style={{ paddingHorizontal: spacing.lg }}>
@@ -173,7 +204,7 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
             />
           )}
         />
-      ) : (
+      ) : tab === 'clients' ? (
         <FlatList
           data={visibleClients}
           keyExtractor={(c) => c.id}
@@ -189,6 +220,19 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
               onDelete={() => deleteClient(item)}
               onEdit={() => setEditClient(item)}
             />
+          )}
+        />
+      ) : (
+        <FlatList
+          data={visibleReports}
+          keyExtractor={(r) => r.id}
+          refreshing={loading}
+          onRefresh={load}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={<Text style={styles.empty}>Aucun signalement.</Text>}
+          renderItem={({ item }) => (
+            <ReportCard r={item} onToggle={() => toggleReport(item)} onDelete={() => deleteReport(item)} />
           )}
         />
       )}
@@ -331,6 +375,45 @@ const ClientCard: React.FC<{
     </View>
   </View>
 );
+
+const ReportCard: React.FC<{ r: AdminReport; onToggle: () => void; onDelete: () => void }> = ({
+  r,
+  onToggle,
+  onDelete,
+}) => {
+  const who = r.reporterDeleted ? 'Compte supprimé' : r.reporterName || 'Utilisateur';
+  const roleLabel = r.role === 'partner' ? 'Pro' : r.role === 'client' ? 'Client' : '—';
+  const when = new Date(r.createdAt).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return (
+    <View style={[styles.card, r.status === 'open' && styles.cardOpen]}>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {roleLabel} · {who}
+        </Text>
+        <Badge text={r.status === 'open' ? 'ouvert' : 'résolu'} tone={r.status === 'open' ? 'warn' : 'ok'} />
+      </View>
+      <Text style={styles.reportMsg}>{r.message}</Text>
+      <Text style={styles.cardMuted}>
+        🕑 {when}
+        {r.context ? ` · ${r.context}` : ''}
+        {r.reporterEmail ? ` · ${r.reporterEmail}` : ''}
+      </Text>
+      <View style={styles.actRow}>
+        <ActionBtn
+          label={r.status === 'open' ? '✅ Marquer résolu' : '↩️ Rouvrir'}
+          tone={r.status === 'open' ? 'primary' : 'default'}
+          onPress={onToggle}
+        />
+        <ActionBtn label="🗑️ Supprimer" tone="danger" onPress={onDelete} />
+      </View>
+    </View>
+  );
+};
 
 // ---------------------------------------------------------------- edit modals
 
@@ -533,9 +616,11 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: colors.bg,
   },
+  cardOpen: { borderColor: colors.accent, backgroundColor: '#FFFCF4' },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   cardTitle: { ...typography.h3, color: colors.text, flex: 1 },
   cardLine: { ...typography.small, color: colors.text },
+  reportMsg: { ...typography.body, color: colors.text, marginVertical: 4, lineHeight: 20 },
   cardMuted: { ...typography.small, color: colors.textMuted },
   badges: { flexDirection: 'row', gap: 6 },
   badge: {

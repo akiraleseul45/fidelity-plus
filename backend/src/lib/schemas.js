@@ -178,6 +178,16 @@ const adminStatusSchema = z.object({
   status: z.enum(['pending', 'approved', 'suspended']),
 });
 
+// ---------- Reports (problem reports) ----------
+const reportCreateSchema = z.object({
+  message: z.string().trim().min(5, 'message trop court').max(2000, 'message trop long'),
+  context: z.string().trim().max(80).optional().or(z.literal('')),
+});
+
+const reportStatusSchema = z.object({
+  status: z.enum(['open', 'resolved']),
+});
+
 module.exports = {
   clientSignupSchema,
   clientLoginSchema,
@@ -193,4 +203,6 @@ module.exports = {
   adminClientUpdateSchema,
   adminSuspendSchema,
   adminStatusSchema,
+  reportCreateSchema,
+  reportStatusSchema,
 };

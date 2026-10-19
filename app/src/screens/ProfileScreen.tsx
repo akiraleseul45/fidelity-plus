@@ -2,6 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button';
+import { ReportProblemButton } from '../components/ReportProblemButton';
 import { Screen } from '../components/Screen';
 import { RootStackParamList } from '../navigation';
 import { useApp } from '../store/AppContext';
@@ -126,6 +127,14 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           >
             <Text style={styles.link}>Mentions légales →</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.h2}>Aide & support</Text>
+          <Text style={styles.sub}>Un bug, une question, un souci ? Dis-le-nous.</Text>
+          <View style={{ marginTop: spacing.sm }}>
+            <ReportProblemButton context={user.role === 'partner' ? 'Profil pro' : 'Profil client'} />
+          </View>
         </View>
 
         <View style={styles.section}>

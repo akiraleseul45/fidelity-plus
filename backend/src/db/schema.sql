@@ -167,3 +167,19 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+-- ---------------------------------------------------------------------
+-- REPORTS  (problem reports sent by clients / partners to the admin)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reports (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT REFERENCES users(id) ON DELETE SET NULL, -- reporter (nullable)
+  role        TEXT,                        -- 'client' | 'partner' at send time
+  message     TEXT NOT NULL,
+  context     TEXT,                        -- optional screen/context label
+  status      TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  created_at  INTEGER NOT NULL,
+  resolved_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
