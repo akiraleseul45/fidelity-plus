@@ -52,6 +52,7 @@ function confirmAction(message: string): Promise<boolean> {
 
 export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const logout = useAuthStore((s) => s.logout);
+  const startDemo = useAuthStore((s) => s.startDemo);
   const [tab, setTab] = useState<Tab>('partners');
   const [partners, setPartners] = useState<AdminPartner[]>([]);
   const [clients, setClients] = useState<AdminClient[]>([]);
@@ -88,6 +89,19 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const doLogout = async () => {
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
+  const simulate = async (role: 'client' | 'partner') => {
+    const r = await startDemo(role);
+    if (!r.ok) {
+      if (Platform.OS === 'web') window.alert(r.error);
+      else Alert.alert('Simulation impossible', r.error);
+      return;
+    }
+    navigation.reset({
+      index: 0,
+      routes: [{ name: role === 'partner' ? 'PartnerScanner' : 'ClientQR' }],
+    });
   };
 
   // ---- Partner actions ----
@@ -157,6 +171,15 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
           <Stat n={stats.openReports} label="Signalements" highlight={stats.openReports > 0} />
         </View>
       ) : null}
+
+      <View style={styles.simRow}>
+        <Pressable onPress={() => simulate('client')} style={({ pressed }) => [styles.simBtn, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.simText}>🎭 Simuler un client</Text>
+        </Pressable>
+        <Pressable onPress={() => simulate('partner')} style={({ pressed }) => [styles.simBtn, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.simText}>🎭 Simuler un pro</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.tabs}>
         <Tab label="Pros" active={tab === 'partners'} onPress={() => setTab('partners')} />
@@ -580,6 +603,17 @@ const styles = StyleSheet.create({
   statHot: { backgroundColor: '#FFF6E6' },
   statN: { ...typography.h1, color: colors.text },
   statLabel: { ...typography.small, color: colors.textMuted },
+  simRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  simBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: '#FFF6E6',
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  simText: { ...typography.small, color: '#9A6B00', fontWeight: '800' },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   tab: {
     flex: 1,

@@ -124,8 +124,8 @@ function newAdminCode() {
 
 // ---------- JWT helpers ----------
 
-function signAccessToken(payload) {
-  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: ACCESS_TTL });
+function signAccessToken(payload, expiresIn = ACCESS_TTL) {
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn });
 }
 
 function verifyAccessToken(token) {

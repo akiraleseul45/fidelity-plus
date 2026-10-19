@@ -176,6 +176,21 @@ router.delete('/clients/:id', adminOnly, async (req, res, next) => {
   }
 });
 
+// ---- Simulation: open a demo client/partner session ----
+router.post('/impersonate', adminOnly, async (req, res, next) => {
+  try {
+    const role = req.body?.role;
+    if (role !== 'client' && role !== 'partner') {
+      return res.status(400).json({ success: false, error: 'role doit être client ou partner.' });
+    }
+    const { accessToken, user } = await authService.impersonateDemo(role);
+    logger.info({ role }, '[admin] demo impersonation');
+    res.json({ success: true, accessToken, user });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---- Reports (problem reports) ----
 router.get('/reports', adminOnly, async (req, res, next) => {
   try {

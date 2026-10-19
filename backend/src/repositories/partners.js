@@ -76,7 +76,7 @@ module.exports = {
   // mode is 'les_deux' matches both 'sur_place' and 'a_domicile' filters.
   async listPublic({ limit = 100, offset = 0, categories = null, serviceMode = null } = {}) {
     const params = [];
-    let where = `u.deleted_at IS NULL AND u.suspended_at IS NULL AND p.status = 'approved'`;
+    let where = `u.deleted_at IS NULL AND u.suspended_at IS NULL AND u.is_demo = 0 AND p.status = 'approved'`;
 
     if (Array.isArray(categories) && categories.length) {
       where += ` AND p.category IN (${categories.map(() => '?').join(', ')})`;
@@ -129,11 +129,28 @@ module.exports = {
               p.status
        FROM users u
        INNER JOIN partner_profiles p ON p.user_id = u.id
-       WHERE u.deleted_at IS NULL`;
+       WHERE u.deleted_at IS NULL AND u.is_demo = 0`;
     if (status) {
       return driver.query(`${base} AND p.status = ? ORDER BY p.created_at DESC`, [status]);
     }
     return driver.query(`${base} ORDER BY p.created_at DESC`);
+  },
+
+  // Duplicate detection (audit: no two pros with the same identity). Returns
+  // existing non-deleted partners whose domain name + address match. The
+  // caller then checks phone overlap to decide.
+  async findByNameAndAddress({ ownerName, address }) {
+    return driver.query(
+      `SELECT u.id,
+              p.phone_fixed AS "phoneFixed",
+              p.phone_mobile AS "phoneMobile"
+       FROM users u
+       INNER JOIN partner_profiles p ON p.user_id = u.id
+       WHERE u.role = 'partner' AND u.deleted_at IS NULL
+         AND lower(trim(p.owner_name)) = lower(trim(?))
+         AND lower(trim(p.address))    = lower(trim(?))`,
+      [ownerName, address],
+    );
   },
 
   // Operator-only: approve / suspend / reset a partner (audit FP-09).

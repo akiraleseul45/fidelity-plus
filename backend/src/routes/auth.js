@@ -42,6 +42,18 @@ router.post(
   async (req, res, next) => {
     try {
       const { pseudonym, email, consent } = req.body;
+
+      // Cap client accounts per email at 2 (anti-duplicate).
+      if (email) {
+        const existing = await usersRepo.countClientsByEmail(email);
+        if (existing >= 2) {
+          return res.status(409).json({
+            success: false,
+            error: 'Deux comptes existent déjà avec cet email. Impossible d’en créer un troisième.',
+          });
+        }
+      }
+
       const { userId, loginCode } = await authService.signupClient({
         pseudonym,
         email: email || null,
@@ -148,6 +160,31 @@ router.post(
           success: false,
           error: 'Une demande a déjà été envoyée pour cet email dans les dernières 24h.',
         });
+      }
+
+      // Block a duplicate establishment: same domain name + address, and a
+      // shared phone (or no phone to distinguish them).
+      const sameNameAddr = await partnersRepo.findByNameAndAddress({
+        ownerName: req.body.ownerName,
+        address: req.body.address,
+      });
+      if (sameNameAddr.length) {
+        const newPhones = [req.body.phoneFixed, req.body.phoneMobile]
+          .map((p) => (p || '').trim())
+          .filter(Boolean);
+        const isDuplicate = sameNameAddr.some((m) => {
+          const exPhones = [m.phoneFixed, m.phoneMobile]
+            .map((p) => (p || '').trim())
+            .filter(Boolean);
+          if (!newPhones.length || !exPhones.length) return true;
+          return newPhones.some((np) => exPhones.includes(np));
+        });
+        if (isDuplicate) {
+          return res.status(409).json({
+            success: false,
+            error: 'Un établissement avec le même nom, téléphone et adresse existe déjà.',
+          });
+        }
       }
 
       const { userId, loginCode } = await authService.signupPartner(req.body);

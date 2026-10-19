@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
   AuthUser,
+  Tokens,
+  apiAdminImpersonate,
   apiAdminLogin,
   apiClientLogin,
   apiClientSignup,
@@ -12,6 +14,7 @@ import {
   clearTokens,
   loadTokens,
   saveTokens,
+  setImpersonating,
 } from '../store/api';
 import { useLoyaltyStore } from './loyaltyStore';
 
@@ -25,8 +28,16 @@ import { useLoyaltyStore } from './loyaltyStore';
 type AuthState = {
   ready: boolean;
   user: AuthUser | null;
+  /** True while an admin is simulating a demo client/partner. */
+  impersonating: boolean;
+  _adminBackup: { tokens: Tokens | null; user: AuthUser | null } | null;
 
   bootstrap: () => Promise<void>;
+
+  startDemo: (role: 'client' | 'partner') => Promise<
+    { ok: true; user: AuthUser } | { ok: false; error: string }
+  >;
+  stopDemo: () => Promise<void>;
 
   signupClient: (pseudonym: string, email?: string) => Promise<
     { ok: true; user: AuthUser; loginCode: string } | { ok: false; error: string }
@@ -58,9 +69,11 @@ type AuthState = {
   setUser: (user: AuthUser | null) => void;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   ready: false,
   user: null,
+  impersonating: false,
+  _adminBackup: null,
 
   async bootstrap() {
     // On web, the session cookie may still be valid even without tokens
@@ -156,7 +169,39 @@ export const useAuthStore = create<AuthState>((set) => ({
     return { ok: true as const, user: res.user };
   },
 
+  async startDemo(role) {
+    const res = await apiAdminImpersonate(role);
+    if (!res.success || !res.accessToken || !res.user) {
+      return { ok: false as const, error: res.error || 'Simulation impossible.' };
+    }
+    const backupTokens = await loadTokens(); // admin token (in memory on web)
+    const backupUser = get().user;
+    setImpersonating(true);
+    await saveTokens({ accessToken: res.accessToken });
+    useLoyaltyStore.getState().clear();
+    set({
+      user: res.user,
+      impersonating: true,
+      _adminBackup: { tokens: backupTokens, user: backupUser },
+    });
+    return { ok: true as const, user: res.user };
+  },
+
+  async stopDemo() {
+    const backup = get()._adminBackup;
+    setImpersonating(false);
+    useLoyaltyStore.getState().clear();
+    if (backup?.tokens) await saveTokens(backup.tokens);
+    else await clearTokens();
+    set({ user: backup?.user ?? null, impersonating: false, _adminBackup: null });
+  },
+
   async logout() {
+    // Leaving a simulation? Just restore the admin session instead.
+    if (get().impersonating) {
+      await get().stopDemo();
+      return;
+    }
     // Clear the local session FIRST so the UI logs out instantly even if the
     // network is slow or offline. Also wipes the previous user's loyalty data
     // so it can't leak into the next session on this device (audit FP-22).

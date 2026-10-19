@@ -369,3 +369,105 @@ describe('routes — problem reports', () => {
     expect(del.status).toBe(200);
   });
 });
+
+describe('routes — duplicates, history, simulation', () => {
+  test('client email capped at 2 accounts', async () => {
+    const email = `dup.client.${Date.now()}@test.local`;
+    const mk = () =>
+      request(app).post('/api/auth/client/signup').send({ pseudonym: 'Dup', email, consent: true });
+    expect((await mk()).status).toBe(200);
+    expect((await mk()).status).toBe(200);
+    const third = await mk();
+    expect(third.status).toBe(409);
+  });
+
+  test('partner duplicate (same name+address, no phone) is blocked', async () => {
+    const body = {
+      ownerName: 'DupDomain',
+      companyName: 'DupCo',
+      address: '9 rue Unique, 45000 Orleans',
+      email: `dp1.${Date.now()}@test.local`,
+      consent: true,
+    };
+    const first = await request(app).post('/api/auth/partner/signup').send(body);
+    expect(first.status).toBe(200);
+    const second = await request(app)
+      .post('/api/auth/partner/signup')
+      .send({ ...body, email: `dp2.${Date.now()}@test.local` });
+    expect(second.status).toBe(409);
+  });
+
+  test('partner with same name+address but different phone is allowed', async () => {
+    const base = {
+      ownerName: 'PhoneDomain',
+      companyName: 'PhoneCo',
+      address: '11 rue Tel, 45000 Orleans',
+      consent: true,
+    };
+    const a = await request(app)
+      .post('/api/auth/partner/signup')
+      .send({ ...base, email: `ph1.${Date.now()}@test.local`, phoneMobile: '0600000001' });
+    expect(a.status).toBe(200);
+    const b = await request(app)
+      .post('/api/auth/partner/signup')
+      .send({ ...base, email: `ph2.${Date.now()}@test.local`, phoneMobile: '0600000002' });
+    expect(b.status).toBe(200);
+  });
+
+  test('client history returns scan activity with partner name', async () => {
+    const c = await signupClient('HistClient');
+    const p = await signupPartner('HistPartner', 'hist@test.local');
+    const pl = await loginPartner(p.loginCode);
+    const qr = await request(app).get('/api/loyalty/qr').set('Authorization', `Bearer ${c.accessToken}`);
+    await request(app)
+      .post('/api/loyalty/scan')
+      .set('Authorization', `Bearer ${pl.accessToken}`)
+      .send({ qrToken: qr.body.qrToken });
+    const hist = await request(app)
+      .get('/api/loyalty/history')
+      .set('Authorization', `Bearer ${c.accessToken}`);
+    expect(hist.status).toBe(200);
+    expect(hist.body.items.length).toBeGreaterThanOrEqual(1);
+    expect(hist.body.items[0].kind).toBe('add');
+    expect(hist.body.items[0].companyName).toBe('HistPartner Co');
+  });
+
+  test('admin can open a demo client session; demo is hidden from lists', async () => {
+    const admin = await provisionAndLoginAdmin();
+    const imp = await request(app)
+      .post('/api/admin/impersonate')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ role: 'client' });
+    expect(imp.status).toBe(200);
+    expect(imp.body.accessToken).toMatch(/^eyJ/);
+    expect(imp.body.user.role).toBe('client');
+    // the demo token works as a client
+    const me = await request(app)
+      .get('/api/loyalty/me')
+      .set('Authorization', `Bearer ${imp.body.accessToken}`);
+    expect(me.status).toBe(200);
+    // demo client is NOT in the admin client list
+    const clients = await request(app)
+      .get('/api/admin/clients')
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect((clients.body.items || []).find((x) => x.pseudonym === 'Client Démo')).toBeUndefined();
+  });
+
+  test('admin can open a demo partner session', async () => {
+    const admin = await provisionAndLoginAdmin();
+    const imp = await request(app)
+      .post('/api/admin/impersonate')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ role: 'partner' });
+    expect(imp.status).toBe(200);
+    expect(imp.body.user.role).toBe('partner');
+    // demo partner is approved → can list its (empty) client loyalty
+    const list = await request(app)
+      .get('/api/loyalty/partner')
+      .set('Authorization', `Bearer ${imp.body.accessToken}`);
+    expect(list.status).toBe(200);
+    // demo partner is NOT in the public directory
+    const pub = await request(app).get('/api/partners');
+    expect((pub.body.items || []).find((x) => x.companyName === 'Boutique Démo')).toBeUndefined();
+  });
+});

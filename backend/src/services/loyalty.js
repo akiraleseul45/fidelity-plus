@@ -144,4 +144,8 @@ async function listForPartner(partnerId) {
   return loyaltyRepo.byPartner(partnerId);
 }
 
-module.exports = { issueQrForClient, scan, redeem, listForClient, listForPartner };
+async function historyForClient(clientId) {
+  return loyaltyRepo.historyForClient(clientId);
+}
+
+module.exports = { issueQrForClient, scan, redeem, listForClient, listForPartner, historyForClient };

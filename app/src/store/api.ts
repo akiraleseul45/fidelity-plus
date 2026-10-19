@@ -36,7 +36,7 @@ export const API_BASE_URL = defaultBaseUrl();
 
 const TOKENS_KEY = 'fidl.tokens.v3'; // bumped from v2 to invalidate stale state
 
-type Tokens = {
+export type Tokens = {
   accessToken: string;
   /** Only present on native — web stores these in httpOnly cookies. */
   sessionId?: string;
@@ -79,6 +79,14 @@ export async function clearTokens(): Promise<void> {
 type ApiResult<T = any> = { success: boolean; error?: string } & T;
 
 let refreshing: Promise<Tokens | null> | null = null;
+
+// While an admin is simulating a demo account, we must NOT auto-refresh on
+// 401 (refresh would use the admin's cookie and silently swap the session
+// back). The admin's refresh cookie stays valid for the real return.
+let impersonating = false;
+export function setImpersonating(v: boolean) {
+  impersonating = v;
+}
 
 async function refreshTokens(): Promise<Tokens | null> {
   // On web, refresh is driven entirely by the browser cookie — no body needed.
@@ -155,8 +163,8 @@ async function fetchJson<T = any>(
       credentials: IS_WEB ? 'include' : 'omit',
     });
 
-    // On 401, attempt one refresh and retry.
-    if (res.status === 401 && auth && !opts._retried) {
+    // On 401, attempt one refresh and retry (never while simulating).
+    if (res.status === 401 && auth && !opts._retried && !impersonating) {
       const newTokens = await refreshTokens();
       if (newTokens) {
         return fetchJson<T>(path, init, { ...opts, _retried: true });
@@ -389,6 +397,25 @@ export async function apiAdminSetReportStatus(id: string, status: 'open' | 'reso
 
 export async function apiAdminDeleteReport(id: string): Promise<{ success: boolean; error?: string }> {
   return fetchJson(`/api/admin/reports/${id}`, { method: 'DELETE' });
+}
+
+// Open a demo client/partner session for the admin (returns a demo token).
+export async function apiAdminImpersonate(role: 'client' | 'partner'): Promise<{ success: boolean; accessToken?: string; user?: AuthUser; error?: string }> {
+  return fetchJson('/api/admin/impersonate', { method: 'POST', body: JSON.stringify({ role }) });
+}
+
+// ---------- Client history ----------
+
+export type ClientHistoryItem = {
+  id: string;
+  delta: number;
+  kind: 'add' | 'redeem';
+  createdAt: number;
+  companyName: string | null;
+};
+
+export async function apiClientHistory(): Promise<{ success: boolean; items?: ClientHistoryItem[]; error?: string }> {
+  return fetchJson('/api/loyalty/history', { method: 'GET' });
 }
 
 export async function apiPartnerLogin(code: string): Promise<AuthResponse> {

@@ -79,8 +79,20 @@ module.exports = {
 
   async countByRole(role) {
     const row = await driver.queryOne(
-      `SELECT COUNT(*) AS n FROM users WHERE role = ? AND deleted_at IS NULL`,
+      `SELECT COUNT(*) AS n FROM users WHERE role = ? AND deleted_at IS NULL AND is_demo = 0`,
       [role],
+    );
+    return Number(row?.n || 0);
+  },
+
+  // How many (non-deleted) client accounts already use this email. Used to
+  // cap client accounts per email (max 2).
+  async countClientsByEmail(email) {
+    if (!email) return 0;
+    const row = await driver.queryOne(
+      `SELECT COUNT(*) AS n FROM users
+       WHERE email = ? AND role = 'client' AND deleted_at IS NULL`,
+      [email.toLowerCase()],
     );
     return Number(row?.n || 0);
   },
@@ -96,6 +108,7 @@ module.exports = {
   },
 
   // Admin listing of all clients with their profile + a points summary.
+  // Demo/simulation accounts are excluded.
   async adminListClients() {
     return driver.query(
       `SELECT u.id, u.email, u.created_at AS "createdAt", u.suspended_at AS "suspendedAt",
@@ -104,7 +117,7 @@ module.exports = {
               (SELECT COUNT(*) FROM loyalty l WHERE l.client_id = u.id) AS "partnersCount"
        FROM users u
        INNER JOIN client_profiles c ON c.user_id = u.id
-       WHERE u.role = 'client' AND u.deleted_at IS NULL
+       WHERE u.role = 'client' AND u.deleted_at IS NULL AND u.is_demo = 0
        ORDER BY u.created_at DESC`,
     );
   },

@@ -88,6 +88,16 @@ router.get('/me', requireAuth, requireRole('client'), async (req, res, next) => 
   }
 });
 
+// Recent activity (points earned + rewards used) for the signed-in client.
+router.get('/history', requireAuth, requireRole('client'), async (req, res, next) => {
+  try {
+    const items = await loyaltyService.historyForClient(req.user.id);
+    res.json({ success: true, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/partner', requireAuth, requireRole('partner'), async (req, res, next) => {
   try {
     const items = await loyaltyService.listForPartner(req.user.id);

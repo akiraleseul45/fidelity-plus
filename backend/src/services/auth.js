@@ -239,6 +239,81 @@ async function logout(sessionId) {
   if (sessionId) await sessionsRepo.revoke(sessionId);
 }
 
+// ---------- Demo / simulation accounts (admin) ----------
+
+async function getMeta(key) {
+  const r = await driver.queryOne(`SELECT value FROM meta WHERE key = ?`, [key]);
+  return r?.value || null;
+}
+
+// Ensure the demo account for a role exists (is_demo=1) and return its id.
+// Demo accounts are excluded from the public directory, admin lists and stats.
+async function getOrCreateDemo(role) {
+  const r = role === 'partner' ? 'partner' : 'client';
+  const metaKey = r === 'partner' ? 'demo_partner_id' : 'demo_client_id';
+
+  const existingId = await getMeta(metaKey);
+  if (existingId) {
+    const u = await usersRepo.byId(existingId);
+    if (u) return existingId; // still valid
+  }
+
+  const userId = newId();
+  const unusable = hashSecret(newId() + newId()); // no login_code_lookup → not loginable
+  await driver.transaction(async (ctx) => {
+    if (r === 'partner') {
+      await ctx.mutate(
+        `INSERT INTO users (id, role, email, login_code_hash, created_at, is_demo)
+         VALUES (?, 'partner', 'demo.partner@fidelity.local', ?, ?, 1)`,
+        [userId, unusable, Date.now()],
+      );
+      await ctx.mutate(
+        `INSERT INTO partner_profiles (
+          user_id, owner_name, company_name, address, lat, lng,
+          phone_fixed, phone_mobile, image_url, category, service_mode,
+          reward_threshold, reward_type, reward_value, status, created_at, updated_at
+        ) VALUES (?, 'Démo', 'Boutique Démo', '1 rue de la Démo, 45000 Orléans', 47.9, 1.9,
+          NULL, NULL, NULL, 'restaurant', 'les_deux', 10, 'free_meal', NULL, 'approved', ?, ?)`,
+        [userId, Date.now(), Date.now()],
+      );
+    } else {
+      await ctx.mutate(
+        `INSERT INTO users (id, role, email, login_code_hash, created_at, is_demo)
+         VALUES (?, 'client', 'demo.client@fidelity.local', ?, ?, 1)`,
+        [userId, unusable, Date.now()],
+      );
+      await ctx.mutate(
+        `INSERT INTO client_profiles (user_id, pseudonym, created_at) VALUES (?, 'Client Démo', ?)`,
+        [userId, Date.now()],
+      );
+    }
+    await ctx.mutate(
+      `INSERT INTO meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value`,
+      [metaKey, userId],
+    );
+  });
+  return userId;
+}
+
+// Issue a long-lived (2h) access token for the demo account so an admin can
+// test the app as a client/partner, then swap back. No refresh cookies are
+// set, so the admin's own session is untouched.
+async function impersonateDemo(role) {
+  const r = role === 'partner' ? 'partner' : 'client';
+  const userId = await getOrCreateDemo(r);
+  const accessToken = signAccessToken({ sub: userId, role: r, demo: true }, '2h');
+  let user;
+  if (r === 'client') {
+    const p = await clientsRepo.full(userId);
+    user = { ...p, role: 'client' };
+  } else {
+    const p = await partnersRepo.byId(userId);
+    user = { ...p, role: 'partner' };
+  }
+  return { accessToken, user };
+}
+
 module.exports = {
   signupClient,
   signupPartner,
@@ -248,4 +323,5 @@ module.exports = {
   issueTokens,
   refresh,
   logout,
+  impersonateDemo,
 };

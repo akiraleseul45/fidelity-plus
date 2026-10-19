@@ -164,7 +164,7 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
               style={{ flex: 1 }}
             />
             <Button
-              title="Partenaires"
+              title="Découvrir"
               variant="pillLight"
               onPress={() => navigation.navigate('ClientPartners')}
               style={{ flex: 1 }}

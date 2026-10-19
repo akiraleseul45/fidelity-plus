@@ -104,6 +104,21 @@ module.exports = {
     );
   },
 
+  // Recent loyalty activity for a client (points earned + rewards used),
+  // with the partner's name. Newest first. Powers the client history view.
+  async historyForClient(clientId, limit = 50) {
+    return driver.query(
+      `SELECT s.id, s.delta, s.kind, s.created_at AS "createdAt",
+              p.company_name AS "companyName"
+       FROM scans s
+       LEFT JOIN partner_profiles p ON p.user_id = s.partner_id
+       WHERE s.client_id = ?
+       ORDER BY s.created_at DESC
+       LIMIT ?`,
+      [clientId, limit],
+    );
+  },
+
   async byPartner(partnerId) {
     return driver.query(
       `SELECT l.client_id  AS "clientId",

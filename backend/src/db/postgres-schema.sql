@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at      BIGINT NOT NULL,
   deleted_at      BIGINT,
   suspended_at    BIGINT,
+  is_demo         INTEGER NOT NULL DEFAULT 0,
   consent_given_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;

@@ -1,4 +1,4 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -12,6 +12,7 @@ import { ClientPartnerDetailScreen } from '../screens/client/ClientPartnerDetail
 import { ClientPartnersScreen } from '../screens/client/ClientPartnersScreen';
 import { ClientQRScreen } from '../screens/client/ClientQRScreen';
 import { ClientRewardsScreen } from '../screens/client/ClientRewardsScreen';
+import { ClientHistoryScreen } from '../screens/client/ClientHistoryScreen';
 import { ClientSignupScreen } from '../screens/client/ClientSignupScreen';
 import { ClientSignupSuccessScreen } from '../screens/client/ClientSignupSuccessScreen';
 import { PartnerAuthHomeScreen } from '../screens/partner/PartnerAuthHomeScreen';
@@ -40,6 +41,7 @@ export type RootStackParamList = {
   ClientPartners: undefined;
   ClientPartnerDetail: { partnerId: string };
   ClientRewards: undefined;
+  ClientHistory: undefined;
 
   // Partner
   PartnerAuthHome: undefined;
@@ -53,9 +55,11 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 export const RootNavigator: React.FC = () => {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShadowVisible: false,
@@ -77,9 +81,10 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="ClientSignup" component={ClientSignupScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientSignupSuccess" component={ClientSignupSuccessScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientQR" component={ClientQRScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="ClientPartners" component={ClientPartnersScreen} options={{ title: 'Partenaires' }} />
+        <Stack.Screen name="ClientPartners" component={ClientPartnersScreen} options={{ title: 'Découvrir' }} />
         <Stack.Screen name="ClientPartnerDetail" component={ClientPartnerDetailScreen} options={{ title: '' }} />
         <Stack.Screen name="ClientRewards" component={ClientRewardsScreen} options={{ title: 'Mes récompenses' }} />
+        <Stack.Screen name="ClientHistory" component={ClientHistoryScreen} options={{ title: 'Mon historique' }} />
 
         {/* Partner */}
         <Stack.Screen name="PartnerAuthHome" component={PartnerAuthHomeScreen} options={{ title: '' }} />

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at      INTEGER NOT NULL,
   deleted_at      INTEGER,                    -- GDPR soft-delete; row kept for audit
   suspended_at    INTEGER,                    -- admin deactivation; NULL = active
+  is_demo         INTEGER NOT NULL DEFAULT 0, -- 1 = admin demo/simulation account
   consent_given_at INTEGER                    -- GDPR explicit consent timestamp
 );
 
