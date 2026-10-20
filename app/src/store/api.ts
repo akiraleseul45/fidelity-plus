@@ -24,6 +24,11 @@ import { Platform } from 'react-native';
 
 const IS_WEB = Platform.OS === 'web';
 
+// In production EXPO_PUBLIC_API_URL is the app's OWN origin
+// (https://fidelity-plus.vercel.app). A vercel.json rewrite proxies /api/*
+// to the Render backend, so the browser only ever talks to one origin and
+// the auth cookie is first-party → the session persists on every browser,
+// iOS/Safari included. Locally it falls back to the dev backend.
 const ENV_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').trim();
 function defaultBaseUrl(): string {
   if (ENV_URL) return ENV_URL.replace(/\/+$/, '');
