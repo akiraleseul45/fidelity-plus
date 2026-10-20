@@ -157,7 +157,17 @@ export const AdminDashboardScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <Screen padded={false}>
       <View style={styles.topBar}>
-        <Text style={styles.title}>🛡️ Admin</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Pressable
+            onPress={() => navigation.navigate('Home')}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+          >
+            <Text style={styles.backArrow}>‹</Text>
+          </Pressable>
+          <Text style={styles.title}>🛡️ Admin</Text>
+        </View>
         <Pressable onPress={doLogout} hitSlop={8} style={styles.logoutBtn}>
           <Text style={styles.logoutText}>Déconnexion</Text>
         </Pressable>
@@ -590,6 +600,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   title: { ...typography.h1, color: colors.text },
+  backArrow: { fontSize: 30, lineHeight: 30, color: colors.text, fontWeight: '800' },
   logoutBtn: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface },
   logoutText: { ...typography.small, color: colors.danger, fontWeight: '700' },
   statsRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },

@@ -30,6 +30,16 @@ export const ClientSignupSuccessScreen: React.FC<Props> = ({ navigation, route }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'ClientQR' }] })}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Retour"
+        >
+          <Text style={styles.backArrow}>‹</Text>
+        </Pressable>
+      </View>
       <View style={styles.content}>
         <View style={styles.logoCircle}>
           <Text style={styles.logoEmoji}>🎉</Text>
@@ -75,6 +85,8 @@ export const ClientSignupSuccessScreen: React.FC<Props> = ({ navigation, route }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg },
+  topBar: { paddingTop: spacing.sm },
+  backArrow: { fontSize: 30, lineHeight: 30, color: colors.text, fontWeight: '800' },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   logoCircle: {
     width: 88,

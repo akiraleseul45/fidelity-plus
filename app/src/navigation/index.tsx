@@ -1,6 +1,8 @@
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import { Pressable, Text } from 'react-native';
+import { colors } from '../theme/theme';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LegalScreen } from '../screens/LegalScreen';
@@ -57,15 +59,33 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
+// A consistent back arrow for every header screen: goes back when there's
+// history, otherwise up to Home (so reset destinations also get an arrow).
+const HeaderBack: React.FC<{ onPress: () => void }> = ({ onPress }) => (
+  <Pressable onPress={onPress} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
+    <Text style={{ fontSize: 30, lineHeight: 32, color: colors.text, fontWeight: '800', paddingRight: 8 }}>
+      ‹
+    </Text>
+  </Pressable>
+);
+
 export const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
-        screenOptions={{
+        screenOptions={({ navigation }) => ({
           headerShadowVisible: false,
           headerTitleStyle: { fontWeight: '700' },
           contentStyle: { backgroundColor: '#fff' },
-        }}
+          headerBackVisible: false,
+          headerLeft: () => (
+            <HeaderBack
+              onPress={() =>
+                navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')
+              }
+            />
+          ),
+        })}
       >
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mon compte' }} />
@@ -90,7 +110,7 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="PartnerAuthHome" component={PartnerAuthHomeScreen} options={{ title: '' }} />
         <Stack.Screen name="PartnerLogin" component={PartnerLoginScreen} options={{ title: 'Connexion' }} />
         <Stack.Screen name="PartnerSignup" component={PartnerSignupScreen} options={{ title: 'Inscription' }} />
-        <Stack.Screen name="PartnerSignupSuccess" component={PartnerSignupSuccessScreen} options={{ title: '', headerBackVisible: false }} />
+        <Stack.Screen name="PartnerSignupSuccess" component={PartnerSignupSuccessScreen} options={{ title: '' }} />
         <Stack.Screen name="PartnerScanner" component={PartnerScannerScreen} options={{ title: 'Scanner' }} />
         <Stack.Screen name="PartnerDashboard" component={PartnerDashboardScreen} options={{ title: 'Tableau de bord' }} />
         <Stack.Screen name="PartnerSettings" component={PartnerSettingsScreen} options={{ title: 'Fidélité' }} />

@@ -123,7 +123,17 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.topBar}>
-          <Text style={styles.brand}>Fidelity Plus</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Pressable
+              onPress={() => navigation.navigate('Home')}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Retour"
+            >
+              <Text style={styles.backArrow}>‹</Text>
+            </Pressable>
+            <Text style={styles.brand}>Fidelity Plus</Text>
+          </View>
           <Pressable onPress={onLogout} hitSlop={12}>
             <Text style={styles.logout}>Déconnexion</Text>
           </Pressable>
@@ -192,6 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
   },
+  backArrow: { fontSize: 30, lineHeight: 30, color: colors.heroText, fontWeight: '800' },
   brand: { ...typography.h3, color: colors.heroText, fontWeight: '800', letterSpacing: -0.3 },
   logout: { ...typography.small, color: colors.heroText, fontWeight: '700', opacity: 0.9 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
