@@ -15,17 +15,29 @@
  * a direct hit on the onrender.com origin still gets *some* key rather than a
  * spoofable one.
  */
+function isPlausibleIp(v) {
+  return typeof v === 'string' && v.length > 0 && v.length <= 45 && !v.includes(' ');
+}
+
 function clientIp(req) {
-  const cf = req.headers && req.headers['cf-connecting-ip'];
-  if (
-    typeof cf === 'string' &&
-    cf.length > 0 &&
-    cf.length <= 45 && // max length of an IPv6 textual address
-    !cf.includes(',') &&
-    !cf.includes(' ')
-  ) {
-    return cf.trim();
+  const h = req.headers || {};
+
+  // 1. Cloudflare (single, non-spoofable when traffic actually goes through CF).
+  const cf = h['cf-connecting-ip'];
+  if (isPlausibleIp(cf) && !cf.includes(',')) return cf.trim();
+
+  // 2. Behind the Vercel proxy (same-origin API): Vercel sets the real client
+  //    IP here. x-vercel-forwarded-for / x-real-ip are single values; the
+  //    standard x-forwarded-for may be a list whose first entry is the client.
+  const vercel = h['x-vercel-forwarded-for'] || h['x-real-ip'];
+  if (isPlausibleIp(vercel) && !vercel.includes(',')) return vercel.trim();
+
+  const xff = h['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.length) {
+    const first = xff.split(',')[0].trim();
+    if (isPlausibleIp(first)) return first;
   }
+
   return req.ip;
 }
 

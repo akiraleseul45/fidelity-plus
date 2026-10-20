@@ -50,4 +50,19 @@ describe('clientIp (FP-02)', () => {
     const b = clientIp(mkReq({ 'CF-Connecting-IP': '203.0.113.2' }));
     expect(a).not.toBe(b);
   });
+
+  test('uses x-real-ip (Vercel proxy) when CF is absent', () => {
+    expect(clientIp(mkReq({ 'X-Real-IP': '203.0.113.50' }, '10.0.0.1'))).toBe('203.0.113.50');
+  });
+
+  test('uses first entry of x-forwarded-for behind the proxy', () => {
+    const req = mkReq({ 'X-Forwarded-For': '203.0.113.77, 70.0.0.1' }, '10.0.0.1');
+    expect(clientIp(req)).toBe('203.0.113.77');
+  });
+
+  test('distinct proxied clients get distinct keys', () => {
+    const a = clientIp(mkReq({ 'X-Forwarded-For': '203.0.113.1, 70.0.0.1' }));
+    const b = clientIp(mkReq({ 'X-Forwarded-For': '203.0.113.2, 70.0.0.1' }));
+    expect(a).not.toBe(b);
+  });
 });
