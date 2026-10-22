@@ -4,6 +4,7 @@ const { adminEmailTemplate } = require('./templates/adminEmail');
 const { proEmailTemplate } = require('./templates/proEmail');
 const { clientEmailTemplate } = require('./templates/clientEmail');
 const { clientRecoveryTemplate } = require('./templates/clientRecoveryEmail');
+const { bookingConfirmationTemplate } = require('./templates/bookingEmail');
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
@@ -205,10 +206,20 @@ async function sendClientRecoveryMail(payload) {
   });
 }
 
+async function sendBookingConfirmationMail(payload) {
+  return sendMail({
+    to: payload.to,
+    subject: `Réservation confirmée — ${payload.companyName} (${payload.reference})`,
+    html: bookingConfirmationTemplate(payload),
+    label: 'booking confirmation email',
+  });
+}
+
 module.exports = {
   sendAdminMail,
   sendProMail,
   sendClientWelcomeMail,
   sendClientRecoveryMail,
+  sendBookingConfirmationMail,
   verifyTransport,
 };

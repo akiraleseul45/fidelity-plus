@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   reward_type      TEXT    NOT NULL DEFAULT 'free_meal' CHECK (reward_type IN ('free_meal', 'discount')),
   reward_value     INTEGER,
   status           TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'suspended')),
+  mod_loyalty      INTEGER NOT NULL DEFAULT 1,
+  mod_booking      INTEGER NOT NULL DEFAULT 0,
+  mod_vitrine      INTEGER NOT NULL DEFAULT 0,
+  description      TEXT,
+  booking_mode     TEXT CHECK (booking_mode IN ('appointment', 'table')),
   created_at       BIGINT NOT NULL,
   updated_at       BIGINT NOT NULL
 );
@@ -126,3 +131,86 @@ CREATE TABLE IF NOT EXISTS reports (
   resolved_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
+
+-- =====================================================================
+-- RESERVATION ENGINE (Phase 1). No payment: prices are informative only.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS services (
+  id           TEXT PRIMARY KEY,
+  partner_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  category     TEXT,
+  price_cents  INTEGER,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  duration_min INTEGER NOT NULL DEFAULT 30,
+  capacity     INTEGER NOT NULL DEFAULT 1,
+  image_url    TEXT,
+  is_active    INTEGER NOT NULL DEFAULT 1,
+  is_private   INTEGER NOT NULL DEFAULT 0,
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  created_at   BIGINT NOT NULL,
+  updated_at   BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_services_partner ON services(partner_id, is_active);
+
+CREATE TABLE IF NOT EXISTS booking_settings (
+  partner_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  slot_interval_min INTEGER NOT NULL DEFAULT 15,
+  buffer_min        INTEGER NOT NULL DEFAULT 0,
+  min_notice_min    INTEGER NOT NULL DEFAULT 120,
+  max_advance_days  INTEGER NOT NULL DEFAULT 60,
+  max_per_day       INTEGER,
+  default_capacity  INTEGER NOT NULL DEFAULT 1,
+  timezone          TEXT NOT NULL DEFAULT 'Europe/Paris',
+  created_at        BIGINT NOT NULL,
+  updated_at        BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS availability_rules (
+  id         TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weekday    INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+  start_min  INTEGER NOT NULL CHECK (start_min BETWEEN 0 AND 1440),
+  end_min    INTEGER NOT NULL CHECK (end_min BETWEEN 0 AND 1440),
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_avail_rules_partner ON availability_rules(partner_id, weekday);
+
+CREATE TABLE IF NOT EXISTS availability_exceptions (
+  id         TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date       TEXT NOT NULL,
+  is_closed  INTEGER NOT NULL DEFAULT 1,
+  start_min  INTEGER,
+  end_min    INTEGER,
+  reason     TEXT,
+  created_at BIGINT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_avail_exc_partner_date
+  ON availability_exceptions(partner_id, date);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id            TEXT PRIMARY KEY,
+  reference     TEXT NOT NULL,
+  partner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  service_id    TEXT REFERENCES services(id) ON DELETE SET NULL,
+  client_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+  customer_name  TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT,
+  party_size    INTEGER NOT NULL DEFAULT 1,
+  starts_at     BIGINT NOT NULL,
+  ends_at       BIGINT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'confirmed'
+                 CHECK (status IN ('pending', 'confirmed', 'cancelled', 'done', 'no_show')),
+  notes         TEXT,
+  created_at    BIGINT NOT NULL,
+  updated_at    BIGINT NOT NULL,
+  cancelled_at  BIGINT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_reference ON bookings(reference);
+CREATE INDEX IF NOT EXISTS idx_bookings_partner ON bookings(partner_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_bookings_client  ON bookings(client_id, starts_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_slot    ON bookings(partner_id, service_id, starts_at);
