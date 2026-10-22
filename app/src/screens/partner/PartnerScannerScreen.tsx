@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { CameraPermissionGate } from '../../components/CameraPermissionGate';
 import { Screen } from '../../components/Screen';
+import { usePartnerHeader } from '../../components/PartnerMenu';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
@@ -30,6 +31,7 @@ type ScanState =
  * anti-replay (single-use nonce), so we directly show the outcome.
  */
 export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
+  usePartnerHeader(navigation);
   const { user, scanQr, redeemReward, logout } = useApp();
   const partner = user?.role === 'partner' ? user : null;
   const [state, setState] = useState<ScanState>({ kind: 'scanning' });

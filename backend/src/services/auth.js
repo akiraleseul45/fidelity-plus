@@ -7,7 +7,11 @@ const {
   verifySecret,
   signAccessToken,
 } = require('../lib/crypto');
-const { DEFAULT_CATEGORY, DEFAULT_SERVICE_MODE } = require('../lib/business');
+const {
+  DEFAULT_CATEGORY,
+  DEFAULT_SERVICE_MODE,
+  bookingModeForCategory,
+} = require('../lib/business');
 const driver = require('../db/driver');
 const usersRepo = require('../repositories/users');
 const clientsRepo = require('../repositories/clients');
@@ -95,8 +99,8 @@ async function signupPartner(input) {
         user_id, owner_name, company_name, address, lat, lng,
         phone_fixed, phone_mobile, image_url, category, service_mode,
         reward_threshold, reward_type, reward_value,
-        status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        booking_mode, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         input.ownerName.trim(),
@@ -112,6 +116,7 @@ async function signupPartner(input) {
         10,
         'free_meal',
         null,
+        bookingModeForCategory(input.category || DEFAULT_CATEGORY),
         'pending',
         Date.now(),
         Date.now(),

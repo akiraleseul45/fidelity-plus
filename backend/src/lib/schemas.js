@@ -188,6 +188,126 @@ const reportStatusSchema = z.object({
   status: z.enum(['open', 'resolved']),
 });
 
+// ---------- Reservation engine ----------
+const { BOOKING_MODE_VALUES } = require('./business');
+
+const Minutes = z.number().int().min(0).max(1440);
+const Weekday = z.number().int().min(1).max(7);
+const DateStr = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'date invalide (AAAA-MM-JJ)');
+const ImageUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .url()
+  .refine((u) => /^https:\/\//i.test(u), 'URL image : seul https est autorisé')
+  .optional()
+  .or(z.literal(''));
+
+// Partner self-service: the 3 module toggles + vitrine text + booking flavour
+// + cover image. Every field optional; at least one must be provided.
+const partnerSelfUpdateSchema = z
+  .object({
+    modLoyalty: z.boolean().optional(),
+    modBooking: z.boolean().optional(),
+    modVitrine: z.boolean().optional(),
+    description: z.string().trim().max(2000).optional().or(z.literal('')),
+    bookingMode: z.enum(BOOKING_MODE_VALUES).optional(),
+    imageUrl: ImageUrl,
+    category: Category.optional(),
+    serviceMode: ServiceMode.optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier');
+
+// Booking engine parameters (all optional patch).
+const bookingSettingsSchema = z
+  .object({
+    slotIntervalMin: z.number().int().min(5).max(240).optional(),
+    bufferMin: z.number().int().min(0).max(240).optional(),
+    minNoticeMin: z.number().int().min(0).max(43200).optional(),
+    maxAdvanceDays: z.number().int().min(1).max(365).optional(),
+    maxPerDay: z.number().int().min(1).max(1000).nullable().optional(),
+    defaultCapacity: z.number().int().min(1).max(1000).optional(),
+    timezone: z.string().trim().min(3).max(60).optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier');
+
+const serviceCreateSchema = z.object({
+  name: z.string().trim().min(1, 'nom requis').max(120),
+  description: z.string().trim().max(2000).optional().or(z.literal('')),
+  category: z.string().trim().max(60).optional().or(z.literal('')),
+  priceCents: z.number().int().min(0).max(100000000).nullable().optional(),
+  currency: z.string().trim().length(3).optional(),
+  durationMin: z.number().int().min(5).max(1440).optional(),
+  capacity: z.number().int().min(1).max(1000).optional(),
+  imageUrl: ImageUrl,
+  isActive: z.boolean().optional(),
+  isPrivate: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(10000).optional(),
+});
+
+const serviceUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    description: z.string().trim().max(2000).optional().or(z.literal('')),
+    category: z.string().trim().max(60).optional().or(z.literal('')),
+    priceCents: z.number().int().min(0).max(100000000).nullable().optional(),
+    currency: z.string().trim().length(3).optional(),
+    durationMin: z.number().int().min(5).max(1440).optional(),
+    capacity: z.number().int().min(1).max(1000).optional(),
+    imageUrl: ImageUrl,
+    isActive: z.boolean().optional(),
+    isPrivate: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).max(10000).optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier');
+
+// Replace the whole weekly grid. endMin must be strictly after startMin.
+const availabilityRulesSchema = z.object({
+  rules: z
+    .array(
+      z
+        .object({ weekday: Weekday, startMin: Minutes, endMin: Minutes })
+        .refine((r) => r.endMin > r.startMin, 'fin avant début'),
+    )
+    .max(100),
+});
+
+const availabilityExceptionSchema = z
+  .object({
+    date: DateStr,
+    isClosed: z.boolean().optional(),
+    startMin: Minutes.optional(),
+    endMin: Minutes.optional(),
+    reason: z.string().trim().max(120).optional().or(z.literal('')),
+  })
+  .refine(
+    (o) => o.isClosed !== false || (o.startMin != null && o.endMin != null && o.endMin > o.startMin),
+    'créneau exceptionnel invalide',
+  );
+
+// Public booking creation (guest or signed-in client).
+const bookingCreateSchema = z.object({
+  serviceId: z.string().trim().min(1).max(64).optional(),
+  date: DateStr,
+  startMin: Minutes,
+  partySize: z.number().int().min(1).max(1000).optional(),
+  customerName: z.string().trim().min(2, 'nom requis').max(80),
+  customerEmail: Email,
+  customerPhone: z
+    .string()
+    .trim()
+    .max(20)
+    .regex(/^[0-9 +.()/-]{6,}$/, 'téléphone invalide')
+    .optional()
+    .or(z.literal('')),
+  notes: z.string().trim().max(2000).optional().or(z.literal('')),
+  acceptTerms: z.boolean().refine((v) => v === true, 'conditions de réservation à accepter'),
+});
+
+const bookingStatusSchema = z.object({
+  status: z.enum(['pending', 'confirmed', 'cancelled', 'done', 'no_show']),
+});
+
 module.exports = {
   clientSignupSchema,
   clientLoginSchema,
@@ -205,4 +325,12 @@ module.exports = {
   adminStatusSchema,
   reportCreateSchema,
   reportStatusSchema,
+  partnerSelfUpdateSchema,
+  bookingSettingsSchema,
+  serviceCreateSchema,
+  serviceUpdateSchema,
+  availabilityRulesSchema,
+  availabilityExceptionSchema,
+  bookingCreateSchema,
+  bookingStatusSchema,
 };

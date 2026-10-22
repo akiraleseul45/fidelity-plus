@@ -75,4 +75,19 @@ const generalLimiter = make({
   limit: 120,
 });
 
-module.exports = { authLimiter, signupLimiter, recoverLimiter, qrLimiter, scanLimiter, generalLimiter };
+// Public booking creation — abusable (spam reservations), so cap per IP.
+const bookingLimiter = make({
+  windowMs: 60 * 60 * 1000,
+  limit: 15,
+  message: { success: false, error: 'Trop de réservations depuis cette adresse. Réessaie plus tard.' },
+});
+
+module.exports = {
+  authLimiter,
+  signupLimiter,
+  recoverLimiter,
+  qrLimiter,
+  scanLimiter,
+  generalLimiter,
+  bookingLimiter,
+};

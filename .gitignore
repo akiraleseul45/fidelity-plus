@@ -43,3 +43,7 @@ web-build/
 .expo/
 *.tsbuildinfo
 pglog.txt
+
+# Local-only ops docs (never publish)
+AUDIT-*.md
+DEPLOIEMENT-*.md

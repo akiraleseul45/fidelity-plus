@@ -17,6 +17,12 @@ const EDITABLE_COLUMNS = {
   rewardType: 'reward_type',
   rewardValue: 'reward_value',
   status: 'status',
+  // The 3 axes + vitrine/booking fields (booleans stored as 0/1 integers).
+  modLoyalty: 'mod_loyalty',
+  modBooking: 'mod_booking',
+  modVitrine: 'mod_vitrine',
+  description: 'description',
+  bookingMode: 'booking_mode',
 };
 
 module.exports = {
@@ -63,7 +69,12 @@ module.exports = {
               p.reward_threshold AS "rewardThreshold",
               p.reward_type AS "rewardType",
               p.reward_value AS "rewardValue",
-              p.status, p.updated_at AS "updatedAt"
+              p.status,
+              p.mod_loyalty AS "modLoyalty",
+              p.mod_booking AS "modBooking",
+              p.mod_vitrine AS "modVitrine",
+              p.description, p.booking_mode AS "bookingMode",
+              p.updated_at AS "updatedAt"
        FROM users u
        INNER JOIN partner_profiles p ON p.user_id = u.id
        WHERE u.id = ? AND u.deleted_at IS NULL`,
@@ -102,7 +113,11 @@ module.exports = {
               p.reward_threshold AS "rewardThreshold",
               p.reward_type AS "rewardType",
               p.reward_value AS "rewardValue",
-              p.status
+              p.status,
+              p.mod_loyalty AS "modLoyalty",
+              p.mod_booking AS "modBooking",
+              p.mod_vitrine AS "modVitrine",
+              p.description
        FROM users u
        INNER JOIN partner_profiles p ON p.user_id = u.id
        WHERE ${where}
