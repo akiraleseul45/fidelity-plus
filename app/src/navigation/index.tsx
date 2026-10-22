@@ -17,6 +17,8 @@ import { ClientRewardsScreen } from '../screens/client/ClientRewardsScreen';
 import { ClientHistoryScreen } from '../screens/client/ClientHistoryScreen';
 import { ClientSignupScreen } from '../screens/client/ClientSignupScreen';
 import { ClientSignupSuccessScreen } from '../screens/client/ClientSignupSuccessScreen';
+import { ClientBookingScreen } from '../screens/client/ClientBookingScreen';
+import { ClientBookingsScreen } from '../screens/client/ClientBookingsScreen';
 import { PartnerAuthHomeScreen } from '../screens/partner/PartnerAuthHomeScreen';
 import { PartnerDashboardScreen } from '../screens/partner/PartnerDashboardScreen';
 import { PartnerLoginScreen } from '../screens/partner/PartnerLoginScreen';
@@ -24,6 +26,11 @@ import { PartnerScannerScreen } from '../screens/partner/PartnerScannerScreen';
 import { PartnerSettingsScreen } from '../screens/partner/PartnerSettingsScreen';
 import { PartnerSignupScreen } from '../screens/partner/PartnerSignupScreen';
 import { PartnerSignupSuccessScreen } from '../screens/partner/PartnerSignupSuccessScreen';
+import { PartnerServicesScreen } from '../screens/partner/PartnerServicesScreen';
+import { PartnerAvailabilityScreen } from '../screens/partner/PartnerAvailabilityScreen';
+import { PartnerBookingsScreen } from '../screens/partner/PartnerBookingsScreen';
+import { PartnerModulesScreen } from '../screens/partner/PartnerModulesScreen';
+import { PartnerVitrineEditScreen } from '../screens/partner/PartnerVitrineEditScreen';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -44,6 +51,8 @@ export type RootStackParamList = {
   ClientPartnerDetail: { partnerId: string };
   ClientRewards: undefined;
   ClientHistory: undefined;
+  ClientBooking: { partnerId: string; serviceId?: string };
+  ClientBookings: undefined;
 
   // Partner
   PartnerAuthHome: undefined;
@@ -53,6 +62,11 @@ export type RootStackParamList = {
   PartnerScanner: undefined;
   PartnerDashboard: undefined;
   PartnerSettings: undefined;
+  PartnerServices: undefined;
+  PartnerAvailability: undefined;
+  PartnerBookings: undefined;
+  PartnerModules: undefined;
+  PartnerVitrineEdit: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -105,6 +119,8 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="ClientPartnerDetail" component={ClientPartnerDetailScreen} options={{ title: '' }} />
         <Stack.Screen name="ClientRewards" component={ClientRewardsScreen} options={{ title: 'Mes récompenses' }} />
         <Stack.Screen name="ClientHistory" component={ClientHistoryScreen} options={{ title: 'Mon historique' }} />
+        <Stack.Screen name="ClientBooking" component={ClientBookingScreen} options={{ title: 'Réserver' }} />
+        <Stack.Screen name="ClientBookings" component={ClientBookingsScreen} options={{ title: 'Mes réservations' }} />
 
         {/* Partner */}
         <Stack.Screen name="PartnerAuthHome" component={PartnerAuthHomeScreen} options={{ title: '' }} />
@@ -114,6 +130,11 @@ export const RootNavigator: React.FC = () => {
         <Stack.Screen name="PartnerScanner" component={PartnerScannerScreen} options={{ title: 'Scanner' }} />
         <Stack.Screen name="PartnerDashboard" component={PartnerDashboardScreen} options={{ title: 'Tableau de bord' }} />
         <Stack.Screen name="PartnerSettings" component={PartnerSettingsScreen} options={{ title: 'Fidélité' }} />
+        <Stack.Screen name="PartnerServices" component={PartnerServicesScreen} options={{ title: 'Prestations' }} />
+        <Stack.Screen name="PartnerAvailability" component={PartnerAvailabilityScreen} options={{ title: 'Disponibilités' }} />
+        <Stack.Screen name="PartnerBookings" component={PartnerBookingsScreen} options={{ title: 'Réservations' }} />
+        <Stack.Screen name="PartnerModules" component={PartnerModulesScreen} options={{ title: 'Modules' }} />
+        <Stack.Screen name="PartnerVitrineEdit" component={PartnerVitrineEditScreen} options={{ title: 'Ma vitrine' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
