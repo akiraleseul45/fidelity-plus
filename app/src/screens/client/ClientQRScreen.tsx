@@ -180,6 +180,11 @@ export const ClientQRScreen: React.FC<Props> = ({ navigation }) => {
               style={{ flex: 1 }}
             />
           </View>
+          <Button
+            title="📅 Mes réservations"
+            variant="pillLight"
+            onPress={() => navigation.navigate('ClientBookings')}
+          />
           <Pressable
             onPress={() => navigation.navigate('Profile')}
             hitSlop={8}
