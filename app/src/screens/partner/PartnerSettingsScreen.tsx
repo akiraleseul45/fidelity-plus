@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
+import { usePartnerHeader } from '../../components/PartnerMenu';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
@@ -12,6 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PartnerSettings'>;
 type RewardType = 'free_meal' | 'discount';
 
 export const PartnerSettingsScreen: React.FC<Props> = ({ navigation }) => {
+  usePartnerHeader(navigation);
   const { user, updatePartnerSettings } = useApp();
   const partner = user?.role === 'partner' ? user : null;
 

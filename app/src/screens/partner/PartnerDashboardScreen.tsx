@@ -2,6 +2,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '../../components/Screen';
+import { usePartnerHeader } from '../../components/PartnerMenu';
+import { apiProBookings } from '../../store/api';
 import { RootStackParamList } from '../../navigation';
 import { useApp } from '../../store/AppContext';
 import { colors, radius, spacing, typography } from '../../theme/theme';
@@ -9,13 +11,30 @@ import { colors, radius, spacing, typography } from '../../theme/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'PartnerDashboard'>;
 
 export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
+  usePartnerHeader(navigation);
   const { user, partnerLoyalty, refreshPartnerLoyalty } = useApp();
   const partner = user?.role === 'partner' ? user : null;
   const [query, setQuery] = useState('');
+  const bookingOn = !!(partner && partner.modBooking);
+  const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
 
   useEffect(() => {
     refreshPartnerLoyalty();
   }, [refreshPartnerLoyalty]);
+
+  useEffect(() => {
+    if (!bookingOn) {
+      setUpcomingCount(null);
+      return;
+    }
+    let alive = true;
+    apiProBookings('upcoming').then((res) => {
+      if (alive && res.success) setUpcomingCount(res.items?.length ?? 0);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [bookingOn]);
 
   if (!partner) {
     return (
@@ -80,6 +99,26 @@ export const PartnerDashboardScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.hintBtnText}>Ouvrir le scanner</Text>
                 </Pressable>
               </View>
+            ) : null}
+            {bookingOn ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Voir les réservations"
+                onPress={() => navigation.navigate('PartnerBookings')}
+                style={styles.bookingBox}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bookingTitle}>📅 Réservations</Text>
+                  <Text style={styles.bookingSub}>
+                    {upcomingCount == null
+                      ? 'Chargement…'
+                      : upcomingCount === 0
+                        ? 'Aucune réservation à venir'
+                        : `${upcomingCount} réservation${upcomingCount > 1 ? 's' : ''} à venir`}
+                  </Text>
+                </View>
+                <Text style={styles.bookingChevron}>›</Text>
+              </Pressable>
             ) : null}
           </View>
         }
@@ -154,4 +193,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   hintBtnText: { ...typography.small, color: '#fff', fontWeight: '700' },
+  bookingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  bookingTitle: { ...typography.h3, color: colors.text },
+  bookingSub: { ...typography.small, color: colors.textMuted, marginTop: 2 },
+  bookingChevron: { fontSize: 28, lineHeight: 28, color: colors.textMuted, fontWeight: '700' },
 });

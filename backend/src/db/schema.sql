@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS partner_profiles (
   reward_type      TEXT    NOT NULL DEFAULT 'free_meal' CHECK (reward_type IN ('free_meal', 'discount')),
   reward_value     INTEGER,                   -- percent for discount
   status           TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'suspended')),
+  -- The 3 toggleable axes (ON/OFF per partner). Loyalty is the historical
+  -- product so it defaults ON; booking + vitrine are opt-in (default OFF).
+  mod_loyalty      INTEGER NOT NULL DEFAULT 1,
+  mod_booking      INTEGER NOT NULL DEFAULT 0,
+  mod_vitrine      INTEGER NOT NULL DEFAULT 0,
+  -- Vitrine: free-text presentation of the business (shown on the public page).
+  description      TEXT,
+  -- Booking engine flavour, derived from the trade at signup but overridable:
+  -- 'appointment' (coiffeur, esthétique, mécanique…) or 'table' (restaurant).
+  booking_mode     TEXT CHECK (booking_mode IN ('appointment', 'table')),
   created_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL
 );
@@ -184,3 +194,108 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
+
+-- =====================================================================
+-- RESERVATION ENGINE (Phase 1) — services, availability, bookings
+-- No payment anywhere: prices are informative only.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- SERVICES  (prestations a partner offers — catalogue)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS services (
+  id           TEXT PRIMARY KEY,
+  partner_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  category     TEXT,                          -- free classement within the pro's own catalogue
+  price_cents  INTEGER,                        -- informative only, never charged; NULL = not shown
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  duration_min INTEGER NOT NULL DEFAULT 30,    -- appointment length (ignored in table mode)
+  capacity     INTEGER NOT NULL DEFAULT 1,     -- max simultaneous bookings per slot (collective)
+  image_url    TEXT,
+  is_active    INTEGER NOT NULL DEFAULT 1,     -- activation / désactivation
+  is_private   INTEGER NOT NULL DEFAULT 0,     -- only reachable via direct link (hidden from list)
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_services_partner ON services(partner_id, is_active);
+
+-- ---------------------------------------------------------------------
+-- BOOKING_SETTINGS  (one row per partner — engine parameters)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS booking_settings (
+  partner_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  slot_interval_min INTEGER NOT NULL DEFAULT 15,   -- gap between slot start times
+  buffer_min        INTEGER NOT NULL DEFAULT 0,    -- dead time after each booking
+  min_notice_min    INTEGER NOT NULL DEFAULT 120,  -- earliest a client may book from now
+  max_advance_days  INTEGER NOT NULL DEFAULT 60,   -- furthest ahead a client may book
+  max_per_day       INTEGER,                        -- NULL = unlimited bookings/day
+  default_capacity  INTEGER NOT NULL DEFAULT 1,     -- covers per service (table mode)
+  timezone          TEXT NOT NULL DEFAULT 'Europe/Paris',
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL
+);
+
+-- ---------------------------------------------------------------------
+-- AVAILABILITY_RULES  (recurring weekly opening windows)
+-- ---------------------------------------------------------------------
+-- weekday: 1=Monday … 7=Sunday (ISO-8601). Minutes are from local midnight
+-- in the partner's timezone (e.g. 540 = 09:00, 1080 = 18:00).
+CREATE TABLE IF NOT EXISTS availability_rules (
+  id         TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weekday    INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+  start_min  INTEGER NOT NULL CHECK (start_min BETWEEN 0 AND 1440),
+  end_min    INTEGER NOT NULL CHECK (end_min BETWEEN 0 AND 1440),
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_avail_rules_partner ON availability_rules(partner_id, weekday);
+
+-- ---------------------------------------------------------------------
+-- AVAILABILITY_EXCEPTIONS  (holidays / special one-off days)
+-- ---------------------------------------------------------------------
+-- A closed day blocks all bookings; an open exception overrides the weekly
+-- window for that date only.
+CREATE TABLE IF NOT EXISTS availability_exceptions (
+  id         TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date       TEXT NOT NULL,                   -- 'YYYY-MM-DD' (local)
+  is_closed  INTEGER NOT NULL DEFAULT 1,
+  start_min  INTEGER,                          -- when is_closed=0: special open window
+  end_min    INTEGER,
+  reason     TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_avail_exc_partner_date
+  ON availability_exceptions(partner_id, date);
+
+-- ---------------------------------------------------------------------
+-- BOOKINGS  (confirmed reservations — source of truth for conflicts)
+-- ---------------------------------------------------------------------
+-- client_id is NULL for guest bookings (the public page does not force an
+-- account). customer_* always carry the contact details used for the booking.
+CREATE TABLE IF NOT EXISTS bookings (
+  id            TEXT PRIMARY KEY,
+  reference     TEXT NOT NULL,                 -- short human ref, unique
+  partner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  service_id    TEXT REFERENCES services(id) ON DELETE SET NULL,
+  client_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+  customer_name  TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT,
+  party_size    INTEGER NOT NULL DEFAULT 1,    -- covers (table) / seats (collective) / 1 (solo)
+  starts_at     INTEGER NOT NULL,              -- unix ms
+  ends_at       INTEGER NOT NULL,              -- unix ms
+  status        TEXT NOT NULL DEFAULT 'confirmed'
+                 CHECK (status IN ('pending', 'confirmed', 'cancelled', 'done', 'no_show')),
+  notes         TEXT,                          -- client message / custom answers
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  cancelled_at  INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_reference ON bookings(reference);
+CREATE INDEX IF NOT EXISTS idx_bookings_partner ON bookings(partner_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_bookings_client  ON bookings(client_id, starts_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_slot    ON bookings(partner_id, service_id, starts_at);

@@ -224,6 +224,13 @@ export type AuthUser =
       rewardType: 'free_meal' | 'discount';
       rewardValue?: number | null;
       status: 'pending' | 'approved' | 'suspended';
+      // The 3 toggleable axes. Returned as 0/1 integers from the backend —
+      // read with `!!partner.modBooking`. Booking flavour + vitrine text too.
+      modLoyalty?: number;
+      modBooking?: number;
+      modVitrine?: number;
+      description?: string | null;
+      bookingMode?: 'appointment' | 'table' | null;
     };
 
 export type AuthResponse = {
@@ -569,4 +576,278 @@ export async function apiPartners(filters?: {
   if (filters?.serviceMode) params.set('serviceMode', filters.serviceMode);
   const qs = params.toString();
   return fetchJson(`/api/partners${qs ? `?${qs}` : ''}`, { method: 'GET' }, { auth: false });
+}
+
+// =====================================================================
+//                         RESERVATION ENGINE
+// No payment anywhere — prices (priceCents) are informative only.
+// =====================================================================
+
+// ---------- Shared types ----------
+
+export type BookingMode = 'appointment' | 'table';
+
+export type ProService = {
+  id: string;
+  partnerId: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  priceCents: number | null; // informative only
+  currency: string;
+  durationMin: number;
+  capacity: number;
+  imageUrl: string | null;
+  isActive: number; // 0/1
+  isPrivate: number; // 0/1
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type AvailabilityRule = { id?: string; weekday: number; startMin: number; endMin: number };
+
+export type AvailabilityException = {
+  id?: string;
+  date: string; // YYYY-MM-DD
+  isClosed: number; // 0/1
+  startMin: number | null;
+  endMin: number | null;
+  reason: string | null;
+};
+
+export type BookingSettings = {
+  partnerId?: string;
+  slotIntervalMin: number;
+  bufferMin: number;
+  minNoticeMin: number;
+  maxAdvanceDays: number;
+  maxPerDay: number | null;
+  defaultCapacity: number;
+  timezone: string;
+};
+
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'done' | 'no_show';
+
+export type Booking = {
+  id: string;
+  reference: string;
+  partnerId: string;
+  serviceId: string | null;
+  clientId: string | null;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string | null;
+  partySize: number;
+  startsAt: number;
+  endsAt: number;
+  status: BookingStatus;
+  notes: string | null;
+  createdAt: number;
+  updatedAt: number;
+  cancelledAt: number | null;
+  serviceName?: string | null;
+  partnerName?: string | null;
+};
+
+export type Slot = {
+  time: string; // 'HH:MM'
+  startMin: number;
+  startsAt: number;
+  endsAt: number;
+  remaining: number;
+};
+
+export type VitrinePartner = {
+  id: string;
+  companyName: string;
+  ownerName: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  phoneFixed: string | null;
+  phoneMobile: string | null;
+  imageUrl: string | null;
+  description: string | null;
+  category: string | null;
+  serviceMode: string | null;
+  modLoyalty: boolean;
+  modBooking: boolean;
+  modVitrine: boolean;
+  bookingMode: BookingMode;
+  rewardThreshold: number;
+  rewardType: 'free_meal' | 'discount';
+  rewardValue: number | null;
+};
+
+// ---------- Pro management (authenticated partner) ----------
+
+// Toggle the 3 axes / edit vitrine text / booking flavour / cover image.
+export async function apiProUpdateProfile(fields: {
+  modLoyalty?: boolean;
+  modBooking?: boolean;
+  modVitrine?: boolean;
+  description?: string;
+  bookingMode?: BookingMode;
+  imageUrl?: string;
+  category?: string;
+  serviceMode?: string;
+}): Promise<{ success: boolean; partner?: AuthUser; error?: string }> {
+  return fetchJson('/api/pro/profile', { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function apiProServices(): Promise<{ success: boolean; items?: ProService[]; error?: string }> {
+  return fetchJson('/api/pro/services', { method: 'GET' });
+}
+
+export async function apiProCreateService(body: {
+  name: string;
+  description?: string;
+  category?: string;
+  priceCents?: number | null;
+  currency?: string;
+  durationMin?: number;
+  capacity?: number;
+  imageUrl?: string;
+  isActive?: boolean;
+  isPrivate?: boolean;
+  sortOrder?: number;
+}): Promise<{ success: boolean; service?: ProService; error?: string }> {
+  return fetchJson('/api/pro/services', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function apiProUpdateService(
+  id: string,
+  fields: Partial<{
+    name: string;
+    description: string;
+    category: string;
+    priceCents: number | null;
+    currency: string;
+    durationMin: number;
+    capacity: number;
+    imageUrl: string;
+    isActive: boolean;
+    isPrivate: boolean;
+    sortOrder: number;
+  }>,
+): Promise<{ success: boolean; service?: ProService; error?: string }> {
+  return fetchJson(`/api/pro/services/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function apiProDeleteService(id: string): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/pro/services/${id}`, { method: 'DELETE' });
+}
+
+export async function apiProAvailability(): Promise<{
+  success: boolean;
+  rules?: AvailabilityRule[];
+  exceptions?: AvailabilityException[];
+  error?: string;
+}> {
+  return fetchJson('/api/pro/availability', { method: 'GET' });
+}
+
+export async function apiProSetRules(
+  rules: AvailabilityRule[],
+): Promise<{ success: boolean; rules?: AvailabilityRule[]; error?: string }> {
+  return fetchJson('/api/pro/availability/rules', { method: 'PUT', body: JSON.stringify({ rules }) });
+}
+
+export async function apiProUpsertException(body: {
+  date: string;
+  isClosed?: boolean;
+  startMin?: number;
+  endMin?: number;
+  reason?: string;
+}): Promise<{ success: boolean; exception?: AvailabilityException; error?: string }> {
+  return fetchJson('/api/pro/availability/exception', { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export async function apiProDeleteException(date: string): Promise<{ success: boolean; error?: string }> {
+  return fetchJson(`/api/pro/availability/exception/${date}`, { method: 'DELETE' });
+}
+
+export async function apiProBookingSettings(): Promise<{ success: boolean; settings?: BookingSettings; error?: string }> {
+  return fetchJson('/api/pro/booking-settings', { method: 'GET' });
+}
+
+export async function apiProUpdateBookingSettings(
+  fields: Partial<Omit<BookingSettings, 'partnerId'>>,
+): Promise<{ success: boolean; settings?: BookingSettings; error?: string }> {
+  return fetchJson('/api/pro/booking-settings', { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function apiProBookings(
+  scope: 'upcoming' | 'past' | 'all' = 'upcoming',
+): Promise<{ success: boolean; items?: Booking[]; error?: string }> {
+  return fetchJson(`/api/pro/bookings?scope=${scope}`, { method: 'GET' });
+}
+
+export async function apiProSetBookingStatus(
+  id: string,
+  status: BookingStatus,
+): Promise<{ success: boolean; booking?: Booking; error?: string }> {
+  return fetchJson(`/api/pro/bookings/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+}
+
+// ---------- Public vitrine + booking (guest or client) ----------
+
+export async function apiVitrine(partnerId: string): Promise<{
+  success: boolean;
+  partner?: VitrinePartner;
+  services?: ProService[];
+  bookingSettings?: { timezone: string; maxAdvanceDays: number } | null;
+  error?: string;
+}> {
+  return fetchJson(`/api/booking/partner/${partnerId}`, { method: 'GET' }, { auth: false });
+}
+
+export async function apiSlots(
+  partnerId: string,
+  date: string,
+  serviceId?: string,
+): Promise<{
+  success: boolean;
+  date?: string;
+  mode?: BookingMode;
+  durationMin?: number;
+  capacity?: number;
+  slots?: Slot[];
+  error?: string;
+}> {
+  const q = new URLSearchParams({ date });
+  if (serviceId) q.set('serviceId', serviceId);
+  // auth:true so a signed-in client's token rides along (optional on the server).
+  return fetchJson(`/api/booking/partner/${partnerId}/slots?${q.toString()}`, { method: 'GET' });
+}
+
+export async function apiBook(
+  partnerId: string,
+  body: {
+    serviceId?: string;
+    date: string;
+    startMin: number;
+    partySize?: number;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    notes?: string;
+    acceptTerms: boolean;
+  },
+): Promise<{ success: boolean; booking?: Booking; error?: string }> {
+  return fetchJson(`/api/booking/partner/${partnerId}/book`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------- Client: my reservations ----------
+
+export async function apiMyBookings(): Promise<{ success: boolean; items?: Booking[]; error?: string }> {
+  return fetchJson('/api/booking/me', { method: 'GET' });
+}
+
+export async function apiCancelBooking(id: string): Promise<{ success: boolean; booking?: Booking; error?: string }> {
+  return fetchJson(`/api/booking/${id}/cancel`, { method: 'POST' });
 }

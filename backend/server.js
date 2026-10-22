@@ -32,6 +32,8 @@ const loyaltyRoutes = require('./src/routes/loyalty');
 const partnerRoutes = require('./src/routes/partners');
 const adminRoutes = require('./src/routes/admin');
 const reportRoutes = require('./src/routes/reports');
+const bookingRoutes = require('./src/routes/booking');
+const proRoutes = require('./src/routes/pro');
 const healthRoutes = require('./src/routes/health');
 
 const PORT = process.env.PORT || 3000;
@@ -97,6 +99,8 @@ app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/booking', bookingRoutes);
+app.use('/api/pro', proRoutes);
 
 // ---------------------------------------------------------------------
 // Error handlers
