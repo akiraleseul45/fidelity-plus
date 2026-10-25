@@ -468,7 +468,7 @@ const SettingsSection: React.FC<{
       ) : null}
 
       <NumField
-        label="Capacité par défaut (mode Table / Couverts)"
+        label="Couverts en même temps (mode Table)"
         value={defaultCapacity}
         onChange={setDefaultCapacity}
       />

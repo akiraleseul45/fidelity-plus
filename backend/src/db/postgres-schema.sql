@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS booking_settings (
   min_notice_min    INTEGER NOT NULL DEFAULT 120,
   max_advance_days  INTEGER NOT NULL DEFAULT 60,
   max_per_day       INTEGER,
-  default_capacity  INTEGER NOT NULL DEFAULT 1,
+  default_capacity  INTEGER NOT NULL DEFAULT 20,
   timezone          TEXT NOT NULL DEFAULT 'Europe/Paris',
   created_at        BIGINT NOT NULL,
   updated_at        BIGINT NOT NULL

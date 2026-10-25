@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS booking_settings (
   min_notice_min    INTEGER NOT NULL DEFAULT 120,  -- earliest a client may book from now
   max_advance_days  INTEGER NOT NULL DEFAULT 60,   -- furthest ahead a client may book
   max_per_day       INTEGER,                        -- NULL = unlimited bookings/day
-  default_capacity  INTEGER NOT NULL DEFAULT 1,     -- covers per service (table mode)
+  default_capacity  INTEGER NOT NULL DEFAULT 20,    -- covers seated at once (table mode)
   timezone          TEXT NOT NULL DEFAULT 'Europe/Paris',
   created_at        INTEGER NOT NULL,
   updated_at        INTEGER NOT NULL
