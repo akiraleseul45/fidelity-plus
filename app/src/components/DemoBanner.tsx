@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { navigationRef } from '../navigation';
 import { useAuthStore } from '../stores/authStore';
@@ -26,7 +26,7 @@ export const DemoBanner: React.FC = () => {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safe} pointerEvents="box-none">
+    <SafeAreaView edges={['top']} style={styles.safe}>
       <View style={styles.bar}>
         <Text style={styles.text} numberOfLines={1}>
           🎭 Mode simulation ({roleLabel} démo)
@@ -40,13 +40,11 @@ export const DemoBanner: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  // In normal flow at the very top of the app so it PUSHES the content
+  // (incl. the navigation header + burger) down instead of covering it.
   safe: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    backgroundColor: colors.accent,
     zIndex: 9999,
-    ...(Platform.OS === 'web' ? ({ position: 'fixed' } as object) : null),
   },
   bar: {
     flexDirection: 'row',

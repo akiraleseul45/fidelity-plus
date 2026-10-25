@@ -54,10 +54,16 @@ export default function App() {
     <PhoneFrame>
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        <Gate>
-          <RootNavigator />
-        </Gate>
-        <DemoBanner />
+        {/* DemoBanner sits in normal flow ABOVE the navigator so it pushes the
+            app (incl. the nav header + burger) down instead of covering it. */}
+        <View style={{ flex: 1 }}>
+          <DemoBanner />
+          <View style={{ flex: 1 }}>
+            <Gate>
+              <RootNavigator />
+            </Gate>
+          </View>
+        </View>
         <CookieConsent />
         <ConfirmHost />
       </SafeAreaProvider>
