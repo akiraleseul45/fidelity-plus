@@ -173,6 +173,7 @@ async function createBooking(input) {
 
   try {
     const result = await driver.transaction(async (tx) => {
+      await settingsRepo.lockForBooking(partnerId, tx);
       if (settings.maxPerDay != null) {
         const dayCount = await bookingsRepo.countActiveForDay({ partnerId, dayStartMs, dayEndMs }, tx);
         if (dayCount >= settings.maxPerDay) return { error: 'day_full' };

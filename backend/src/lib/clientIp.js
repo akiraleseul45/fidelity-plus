@@ -15,12 +15,35 @@
  * a direct hit on the onrender.com origin still gets *some* key rather than a
  * spoofable one.
  */
+const crypto = require('crypto');
+
 function isPlausibleIp(v) {
   return typeof v === 'string' && v.length > 0 && v.length <= 45 && !v.includes(' ');
 }
 
+// Requests coming through the Vercel proxy (the site's own /api/*) reach us
+// from Vercel's egress, so CF-Connecting-IP holds a Vercel address, not the
+// visitor's (audit A-02). The Vercel middleware (app/middleware.js) forwards
+// the real IP in x-fp-client-ip with a shared secret; we trust that header
+// only when the secret matches, so a direct hit on onrender.com can't forge it.
+function proxiedIp(h) {
+  const secret = process.env.PROXY_SHARED_SECRET;
+  if (!secret || secret.length < 32) return null;
+  const given = h['x-fp-proxy-secret'];
+  if (typeof given !== 'string') return null;
+  const a = Buffer.from(given);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const ip = h['x-fp-client-ip'];
+  return isPlausibleIp(ip) && !ip.includes(',') ? ip.trim() : null;
+}
+
 function clientIp(req) {
   const h = req.headers || {};
+
+  // 0. Our own Vercel proxy, authenticated by the shared secret.
+  const proxied = proxiedIp(h);
+  if (proxied) return proxied;
 
   // 1. Cloudflare (single, non-spoofable when traffic actually goes through CF).
   const cf = h['cf-connecting-ip'];

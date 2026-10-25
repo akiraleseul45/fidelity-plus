@@ -35,12 +35,16 @@ async function attachClientIfPresent(req, _res, next) {
 }
 
 // Is this partner page publicly reachable (approved + a public module on)?
+// Loyalty counts: a loyalty-only partner is listed in the directory, so its
+// page must open too (audit A-01).
 function isPublic(partner) {
   return (
     partner &&
     partner.status === 'approved' &&
     !partner.suspendedAt &&
-    (Number(partner.modVitrine) === 1 || Number(partner.modBooking) === 1)
+    (Number(partner.modVitrine) === 1 ||
+      Number(partner.modBooking) === 1 ||
+      Number(partner.modLoyalty) === 1)
   );
 }
 

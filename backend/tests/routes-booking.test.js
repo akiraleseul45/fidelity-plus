@@ -171,12 +171,28 @@ describe('reservation — pro setup + public booking flow', () => {
 });
 
 describe('reservation — guards', () => {
-  test('booking disabled → slots 403, vitrine 404', async () => {
+  test('loyalty-only partner: slots 403, but its page opens without services (A-01)', async () => {
     const pro = await makePartner('NoBookPro', 'nobook@test.local', { enableBooking: false });
     const slots = await request(app).get(`/api/booking/partner/${pro.id}/slots?date=${BOOK_DATE}`);
     expect(slots.status).toBe(403);
+    // Listed in the directory → its page must open (default modules: loyalty only).
+    const dir = await request(app).get('/api/partners');
+    expect(dir.body.items.some((p) => p.id === pro.id)).toBe(true);
     const vitrine = await request(app).get(`/api/booking/partner/${pro.id}`);
-    expect(vitrine.status).toBe(404); // neither vitrine nor booking module on
+    expect(vitrine.status).toBe(200);
+    expect(vitrine.body.partner.modLoyalty).toBe(true);
+    expect(vitrine.body.partner.modBooking).toBe(false);
+    expect(vitrine.body.services).toEqual([]);
+  });
+
+  test('every module off → page 404', async () => {
+    const pro = await makePartner('NoModPro', 'nomod@test.local', { enableBooking: false });
+    await request(app)
+      .put('/api/pro/profile')
+      .set('Authorization', `Bearer ${pro.token}`)
+      .send({ modLoyalty: false });
+    const vitrine = await request(app).get(`/api/booking/partner/${pro.id}`);
+    expect(vitrine.status).toBe(404);
   });
 
   test('vitrine becomes public once a public module is enabled', async () => {
@@ -191,5 +207,61 @@ describe('reservation — guards', () => {
     const pro = await makePartner('NoSvcPro', 'nosvc@test.local');
     const slots = await request(app).get(`/api/booking/partner/${pro.id}/slots?date=${BOOK_DATE}`);
     expect(slots.status).toBe(400);
+  });
+});
+
+describe('reservation — capacity and concurrency', () => {
+  const guest = (n) => ({
+    date: BOOK_DATE,
+    customerName: `Guest ${n}`,
+    customerEmail: `guest${n}@test.local`,
+    acceptTerms: true,
+  });
+
+  test('restaurant with default settings seats a table for 2 and several tables (A-04)', async () => {
+    const pro = await makePartner('TablePro', 'table@test.local');
+    await request(app)
+      .put('/api/pro/profile')
+      .set('Authorization', `Bearer ${pro.token}`)
+      .send({ bookingMode: 'table' });
+
+    const duo = await request(app)
+      .post(`/api/booking/partner/${pro.id}/book`)
+      .send({ ...guest('duo'), startMin: 720, partySize: 2 });
+    expect(duo.status).toBe(201);
+    const four = await request(app)
+      .post(`/api/booking/partner/${pro.id}/book`)
+      .send({ ...guest('four'), startMin: 720, partySize: 4 });
+    expect(four.status).toBe(201);
+
+    const settings = await request(app)
+      .get('/api/pro/booking-settings')
+      .set('Authorization', `Bearer ${pro.token}`);
+    expect(settings.body.settings.defaultCapacity).toBe(20);
+  });
+
+  test('simultaneous bookings of one slot → exactly one succeeds (A-03)', async () => {
+    const pro = await makePartner('RacePro', 'race@test.local');
+    const svc = await request(app)
+      .post('/api/pro/services')
+      .set('Authorization', `Bearer ${pro.token}`)
+      .send({ name: 'Soin', durationMin: 30, capacity: 1 });
+    const serviceId = svc.body.service.id;
+
+    const attempts = await Promise.all(
+      [1, 2, 3, 4, 5].map((n) =>
+        request(app)
+          .post(`/api/booking/partner/${pro.id}/book`)
+          .send({ ...guest(`race${n}`), serviceId, startMin: 600 }),
+      ),
+    );
+    const statuses = attempts.map((r) => r.status).sort();
+    expect(statuses.filter((s) => s === 201)).toHaveLength(1);
+    expect(statuses.filter((s) => s === 409)).toHaveLength(4);
+
+    const list = await request(app)
+      .get('/api/pro/bookings')
+      .set('Authorization', `Bearer ${pro.token}`);
+    expect(list.body.items.filter((b) => b.status === 'confirmed')).toHaveLength(1);
   });
 });

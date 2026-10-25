@@ -66,3 +66,47 @@ describe('clientIp (FP-02)', () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe('clientIp behind the Vercel proxy (A-02)', () => {
+  const SECRET = 's'.repeat(40);
+  let prev;
+  beforeEach(() => {
+    prev = process.env.PROXY_SHARED_SECRET;
+    process.env.PROXY_SHARED_SECRET = SECRET;
+  });
+  afterEach(() => {
+    if (prev === undefined) delete process.env.PROXY_SHARED_SECRET;
+    else process.env.PROXY_SHARED_SECRET = prev;
+  });
+
+  // What Cloudflare sends for a request relayed by Vercel: CF sees Vercel's
+  // egress address, the middleware adds the visitor's real one + the secret.
+  const viaVercel = (ip, secret = SECRET) =>
+    mkReq({ 'CF-Connecting-IP': '76.76.21.1', 'x-fp-client-ip': ip, 'x-fp-proxy-secret': secret });
+
+  test('trusts x-fp-client-ip over CF-Connecting-IP when the secret matches', () => {
+    expect(clientIp(viaVercel('203.0.113.9'))).toBe('203.0.113.9');
+  });
+
+  test('two visitors relayed by the same Vercel node get distinct keys', () => {
+    expect(clientIp(viaVercel('203.0.113.1'))).not.toBe(clientIp(viaVercel('203.0.113.2')));
+  });
+
+  test('ignores a forged x-fp-client-ip with a wrong secret', () => {
+    expect(clientIp(viaVercel('1.2.3.4', 'x'.repeat(40)))).toBe('76.76.21.1');
+  });
+
+  test('ignores x-fp-client-ip without any secret header', () => {
+    const req = mkReq({ 'CF-Connecting-IP': '198.51.100.3', 'x-fp-client-ip': '1.2.3.4' });
+    expect(clientIp(req)).toBe('198.51.100.3');
+  });
+
+  test('ignores x-fp-client-ip when the server has no secret configured', () => {
+    delete process.env.PROXY_SHARED_SECRET;
+    expect(clientIp(viaVercel('1.2.3.4'))).toBe('76.76.21.1');
+  });
+
+  test('rejects a comma-list x-fp-client-ip even with the right secret', () => {
+    expect(clientIp(viaVercel('1.1.1.1, 2.2.2.2'))).toBe('76.76.21.1');
+  });
+});

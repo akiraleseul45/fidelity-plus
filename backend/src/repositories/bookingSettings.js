@@ -1,5 +1,7 @@
 const driver = require('../db/driver');
 
+const DEFAULT_TABLE_CAPACITY = 20;
+
 const EDITABLE_COLUMNS = {
   slotIntervalMin: 'slot_interval_min',
   bufferMin: 'buffer_min',
@@ -26,17 +28,32 @@ module.exports = {
   },
 
   // Return existing settings or lazily create a default row for the partner.
+  // default_capacity is the number of covers a restaurant (table mode) can
+  // seat at once; the column default of 1 made a table for 2 unbookable, so
+  // new rows start at DEFAULT_TABLE_CAPACITY (audit A-04).
   async getOrCreate(partnerId) {
     const existing = await this.get(partnerId);
     if (existing) return existing;
     const now = Date.now();
     await driver.mutate(
-      `INSERT INTO booking_settings (partner_id, created_at, updated_at)
-       VALUES (?, ?, ?)
+      `INSERT INTO booking_settings (partner_id, default_capacity, created_at, updated_at)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(partner_id) DO NOTHING`,
-      [partnerId, now, now],
+      [partnerId, DEFAULT_TABLE_CAPACITY, now, now],
     );
     return this.get(partnerId);
+  },
+
+  // Serialise bookings for one partner (audit A-03). Called first inside the
+  // booking transaction: the no-op UPDATE takes a row lock on Postgres that is
+  // held until COMMIT, so a concurrent booking for the same partner waits and
+  // then sees the first one in its capacity check. SQLite already serialises
+  // transactions; there it is harmless. The row exists (getOrCreate ran).
+  async lockForBooking(partnerId, ctx) {
+    await ctx.mutate(
+      `UPDATE booking_settings SET updated_at = updated_at WHERE partner_id = ?`,
+      [partnerId],
+    );
   },
 
   async update(partnerId, fields) {
