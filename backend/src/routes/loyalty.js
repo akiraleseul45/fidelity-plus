@@ -32,7 +32,7 @@ router.post(
       if (!result.ok) {
         return res.status(httpStatusFor(result.error)).json({
           success: false,
-          error: humanizeError(result.error),
+          error: humanizeError(result.error, result),
         });
       }
       res.json({
@@ -64,7 +64,7 @@ router.post(
       if (!result.ok) {
         return res.status(httpStatusFor(result.error)).json({
           success: false,
-          error: humanizeError(result.error),
+          error: humanizeError(result.error, result),
         });
       }
       res.json({
@@ -135,8 +135,13 @@ router.put(
   },
 );
 
-function humanizeError(code) {
+function humanizeError(code, detail = {}) {
   switch (code) {
+    case 'too_soon': {
+      const m = detail.retryAfterMin || 1;
+      const wait = m >= 60 ? `${Math.ceil(m / 60)} h` : `${m} min`;
+      return `Point déjà crédité récemment pour ce client. Prochain point possible dans ${wait}.`;
+    }
     case 'expired':              return 'Le QR code a expiré. Demande-en un nouveau.';
     case 'invalid':              return 'QR code invalide.';
     case 'already_used':         return 'Ce QR code a déjà été utilisé.';
@@ -150,7 +155,8 @@ function humanizeError(code) {
 
 function httpStatusFor(code) {
   switch (code) {
-    case 'already_used':         return 409;
+    case 'already_used':
+    case 'too_soon':             return 409;
     case 'partner_not_approved': return 403;
     case 'transaction_failed':   return 500;
     default:                     return 400; // invalid, expired, unknown_*, insufficient_points

@@ -18,12 +18,18 @@ const SELECT = `SELECT b.id, b.reference, b.partner_id AS "partnerId", b.service
   LEFT JOIN partner_profiles pp ON pp.user_id = b.partner_id`;
 
 module.exports = {
-  // Sum of party sizes of active bookings that OVERLAP [startsAt, endsAt) for a
-  // partner. Overlap test: existing.start < new.end AND existing.end > new.start.
+  // Active bookings that OVERLAP [startsAt, endsAt) for a partner, split by
+  // service. Overlap test: existing.start < new.end AND existing.end > new.start.
+  // Returns { total, same, other }: party sizes overall and for `serviceId`,
+  // and the number of bookings of any other service (audit A-11).
   // Optional `ctx` runs it inside a transaction (for atomic conflict checks).
-  async activeOverlapSum({ partnerId, startsAt, endsAt, excludeId = null }, ctx = driver) {
-    const params = [partnerId, endsAt, startsAt];
-    let sql = `SELECT COALESCE(SUM(party_size), 0) AS total FROM bookings
+  async activeOverlap({ partnerId, startsAt, endsAt, serviceId = null, excludeId = null }, ctx = driver) {
+    const sid = serviceId || '';
+    const params = [sid, sid, partnerId, endsAt, startsAt];
+    let sql = `SELECT COALESCE(SUM(party_size), 0) AS total,
+                      COALESCE(SUM(CASE WHEN service_id = ? THEN party_size ELSE 0 END), 0) AS same,
+                      COUNT(CASE WHEN service_id IS NULL OR service_id <> ? THEN 1 END) AS other
+               FROM bookings
                WHERE partner_id = ? AND ${ACTIVE}
                  AND starts_at < ? AND ends_at > ?`;
     if (excludeId) {
@@ -31,7 +37,33 @@ module.exports = {
       params.push(excludeId);
     }
     const row = await ctx.queryOne(sql, params);
-    return Number(row?.total || 0);
+    return {
+      total: Number(row?.total || 0),
+      same: Number(row?.same || 0),
+      other: Number(row?.other || 0),
+    };
+  },
+
+  // Bookings made for one customer email since `sinceMs` (all partners).
+  // Caps confirmation emails sent to an unverified address (audit A-16).
+  async countRecentForEmail(email, sinceMs) {
+    const row = await driver.queryOne(
+      `SELECT COUNT(*) AS n FROM bookings WHERE customer_email = ? AND created_at >= ?`,
+      [email, sinceMs],
+    );
+    return Number(row?.n || 0);
+  },
+
+  // Erase a deleted client's personal data from their bookings (audit A-09).
+  // The rows stay so the pro's planning and history remain consistent.
+  async anonymizeForClient(clientId, ctx = driver) {
+    await ctx.mutate(
+      `UPDATE bookings
+       SET customer_name = 'Compte supprimé', customer_email = '', customer_phone = NULL,
+           notes = NULL, updated_at = ?
+       WHERE client_id = ?`,
+      [Date.now(), clientId],
+    );
   },
 
   // Count of active bookings whose start falls within a day window.
@@ -127,10 +159,10 @@ module.exports = {
     return driver.query(`${SELECT} WHERE ${where} ORDER BY b.starts_at ASC`, params);
   },
 
-  async setStatus(id, status) {
+  async setStatus(id, status, ctx = driver) {
     const now = Date.now();
     const cancelled = status === 'cancelled' ? now : null;
-    const res = await driver.mutate(
+    const res = await ctx.mutate(
       `UPDATE bookings SET status = ?, cancelled_at = ?, updated_at = ? WHERE id = ?`,
       [status, cancelled, now, id],
     );

@@ -16,6 +16,8 @@ const servicesRepo = require('../repositories/services');
 const availabilityRepo = require('../repositories/availability');
 const settingsRepo = require('../repositories/bookingSettings');
 const bookingsRepo = require('../repositories/bookings');
+const bookingService = require('../services/booking');
+const bookingMail = require('../services/bookingMail');
 
 const router = express.Router();
 
@@ -163,8 +165,18 @@ router.post('/bookings/:id/status', validate(bookingStatusSchema), async (req, r
   try {
     const booking = await bookingsRepo.byIdForPartner(req.params.id, req.user.id);
     if (!booking) return res.status(404).json({ success: false, error: 'Réservation introuvable.' });
-    await bookingsRepo.setStatus(booking.id, req.body.status);
+    const result = await bookingService.changeStatus({ booking, status: req.body.status });
+    if (!result.ok) {
+      const error =
+        result.error === 'slot_taken'
+          ? 'Ce créneau est déjà complet : impossible de remettre cette réservation au planning.'
+          : 'Ce changement de statut n’est pas possible.';
+      return res.status(409).json({ success: false, error });
+    }
     const updated = await bookingsRepo.byIdForPartner(booking.id, req.user.id);
+    if (result.changed && req.body.status === 'cancelled') {
+      bookingMail.fireAndForget('shop cancellation', bookingMail.sendCancelledByShop(updated));
+    }
     res.json({ success: true, booking: updated });
   } catch (err) {
     next(err);

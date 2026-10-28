@@ -5,6 +5,7 @@ const { proEmailTemplate } = require('./templates/proEmail');
 const { clientEmailTemplate } = require('./templates/clientEmail');
 const { clientRecoveryTemplate } = require('./templates/clientRecoveryEmail');
 const { bookingConfirmationTemplate } = require('./templates/bookingEmail');
+const { bookingNoticeTemplate } = require('./templates/bookingNoticeEmail');
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
@@ -215,7 +216,69 @@ async function sendBookingConfirmationMail(payload) {
   });
 }
 
+// Reservation events between client and pro (audit A-08).
+// payload: { to, companyName, reference, customerName, serviceName, dateLabel,
+//            timeLabel, partySize, phone }
+function bookingRows(p) {
+  return [
+    ['Référence', p.reference],
+    ['Client', p.customerName],
+    ['Prestation', p.serviceName],
+    ['Date', p.dateLabel],
+    ['Heure', p.timeLabel],
+    ['Personnes', p.partySize ? String(p.partySize) : ''],
+    ['Téléphone', p.phone],
+  ];
+}
+
+async function sendProNewBookingMail(p) {
+  return sendMail({
+    to: p.to,
+    subject: `Nouvelle réservation — ${p.dateLabel} ${p.timeLabel} (${p.reference})`,
+    html: bookingNoticeTemplate({
+      title: 'Nouvelle réservation',
+      subtitle: p.companyName,
+      intro: 'Un client vient de réserver chez vous.',
+      rows: bookingRows(p),
+      footer: 'Gérez cette réservation dans votre espace pro Fidelity Plus.',
+    }),
+    label: 'pro new booking email',
+  });
+}
+
+async function sendProCancelledMail(p) {
+  return sendMail({
+    to: p.to,
+    subject: `Réservation annulée par le client — ${p.reference}`,
+    html: bookingNoticeTemplate({
+      title: 'Réservation annulée',
+      subtitle: p.companyName,
+      intro: 'Le client a annulé sa réservation. Le créneau est de nouveau disponible.',
+      rows: bookingRows(p),
+      footer: 'Retrouvez vos réservations dans votre espace pro Fidelity Plus.',
+    }),
+    label: 'pro cancellation email',
+  });
+}
+
+async function sendClientCancelledByShopMail(p) {
+  return sendMail({
+    to: p.to,
+    subject: `Ta réservation chez ${p.companyName} est annulée (${p.reference})`,
+    html: bookingNoticeTemplate({
+      title: 'Réservation annulée',
+      subtitle: p.companyName,
+      intro: `L'établissement a annulé ta réservation. Contacte-le si tu veux reprendre rendez-vous.`,
+      rows: bookingRows({ ...p, customerName: '' }),
+    }),
+    label: 'client cancelled-by-shop email',
+  });
+}
+
 module.exports = {
+  sendProNewBookingMail,
+  sendProCancelledMail,
+  sendClientCancelledByShopMail,
   sendAdminMail,
   sendProMail,
   sendClientWelcomeMail,

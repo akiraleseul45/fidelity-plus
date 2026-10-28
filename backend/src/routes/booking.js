@@ -11,8 +11,11 @@ const servicesRepo = require('../repositories/services');
 const settingsRepo = require('../repositories/bookingSettings');
 const bookingsRepo = require('../repositories/bookings');
 const bookingService = require('../services/booking');
-const mailer = require('../../mailer');
-const logger = require('../lib/logger');
+const bookingMail = require('../services/bookingMail');
+
+// Unverified guest emails: cap how many bookings (and so confirmation
+// emails) one address can receive per day (audit A-16).
+const MAX_BOOKINGS_PER_EMAIL_PER_DAY = 5;
 
 const router = express.Router();
 
@@ -85,7 +88,10 @@ router.get('/partner/:id', generalLimiter, async (req, res, next) => {
       },
       services,
       bookingSettings: settings
-        ? { timezone: settings.timezone, maxAdvanceDays: settings.maxAdvanceDays }
+        ? {
+            timezone: bookingService.safeTimezone(settings.timezone),
+            maxAdvanceDays: settings.maxAdvanceDays,
+          }
         : null,
     });
   } catch (err) {
@@ -119,6 +125,14 @@ router.post(
   validate(bookingCreateSchema),
   async (req, res, next) => {
     try {
+      const email = req.body.customerEmail.trim().toLowerCase();
+      const recent = await bookingsRepo.countRecentForEmail(email, Date.now() - 24 * 60 * 60 * 1000);
+      if (recent >= MAX_BOOKINGS_PER_EMAIL_PER_DAY) {
+        return res.status(429).json({
+          success: false,
+          error: 'Trop de réservations pour cette adresse email aujourd’hui. Réessaie demain.',
+        });
+      }
       const result = await bookingService.createBooking({
         partnerId: req.params.id,
         serviceId: req.body.serviceId || null,
@@ -134,10 +148,8 @@ router.post(
       if (!result.ok) {
         return res.status(statusFor(result.error)).json({ success: false, error: humanize(result.error) });
       }
-      // Fire-and-forget confirmation email (never block the response on mail).
-      sendConfirmation(result.booking, result.partner).catch((err) =>
-        logger.warn({ err: err.message }, '[booking] confirmation email failed'),
-      );
+      // Confirmation to the client + notice to the pro (never block on mail).
+      bookingMail.fireAndForget('new booking', bookingMail.sendNewBooking(result.booking, result.partner));
       res.status(201).json({ success: true, booking: result.booking });
     } catch (err) {
       next(err);
@@ -168,56 +180,12 @@ router.post('/:id/cancel', requireAuth, requireRole('client'), generalLimiter, a
     }
     await bookingsRepo.setStatus(booking.id, 'cancelled');
     const updated = await bookingsRepo.byIdForClient(booking.id, req.user.id);
+    bookingMail.fireAndForget('client cancellation', bookingMail.sendCancelledByClient(updated));
     res.json({ success: true, booking: updated });
   } catch (err) {
     next(err);
   }
 });
-
-// Build + send the confirmation email with French, timezone-aware labels.
-async function sendConfirmation(booking, partner) {
-  if (!booking.customerEmail) return;
-  const settings = await settingsRepo.getOrCreate(booking.partnerId);
-  const tz = settings?.timezone || 'Europe/Paris';
-  const start = new Date(booking.startsAt);
-  const dateLabel = new Intl.DateTimeFormat('fr-FR', {
-    timeZone: tz,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(start);
-  const timeLabel = new Intl.DateTimeFormat('fr-FR', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(start);
-
-  let priceLabel = '';
-  if (booking.serviceId) {
-    const svc = await servicesRepo.byId(booking.serviceId);
-    if (svc && svc.priceCents != null) {
-      priceLabel = new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: svc.currency || 'EUR',
-      }).format(svc.priceCents / 100);
-    }
-  }
-
-  await mailer.sendBookingConfirmationMail({
-    to: booking.customerEmail,
-    reference: booking.reference,
-    companyName: partner?.companyName || booking.partnerName || 'Fidelity Plus',
-    serviceName: booking.serviceName || '',
-    dateLabel,
-    timeLabel,
-    partySize: booking.partySize,
-    address: partner?.address || '',
-    phone: partner?.phoneMobile || partner?.phoneFixed || '',
-    priceLabel,
-    modeLabel: partner?.bookingMode || 'appointment',
-  });
-}
 
 function humanize(code) {
   switch (code) {
