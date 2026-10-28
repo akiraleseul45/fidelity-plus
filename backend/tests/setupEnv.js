@@ -14,6 +14,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'fidl-test-'));
 process.env.DB_PATH = path.join(TMP, 'test.sqlite');
 
 process.env.NODE_ENV = 'test';
+// Most tests scan the same client repeatedly; the cooldown has its own test.
+process.env.SCAN_COOLDOWN_MIN = '0';
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'silent';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx';

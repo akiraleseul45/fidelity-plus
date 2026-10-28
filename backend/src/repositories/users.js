@@ -1,5 +1,6 @@
 const driver = require('../db/driver');
 const { hashSecret, newRefreshToken } = require('../lib/crypto');
+const bookingsRepo = require('./bookings');
 
 /**
  * Users repository — async API, driver-agnostic.
@@ -157,6 +158,7 @@ module.exports = {
       await ctx.mutate(`DELETE FROM login_code_lookup WHERE user_id = ?`, [id]);
       await ctx.mutate(`DELETE FROM sessions WHERE user_id = ?`, [id]);
       await ctx.mutate(`DELETE FROM qr_nonces WHERE client_id = ?`, [id]);
+      await bookingsRepo.anonymizeForClient(id, ctx);
     });
   },
 };

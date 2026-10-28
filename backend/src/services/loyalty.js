@@ -14,7 +14,17 @@ const logger = require('../lib/logger');
  *  - Each QR carries a nonce registered in DB at issuance
  *  - On scan, atomically mark the nonce consumed (race-safe)
  *  - JWT exp = 60s
+ *  - At most one point per client and shop every SCAN_COOLDOWN_MIN minutes
+ *    (default 240), so points can't be farmed with rapid rescans (audit A-07)
  */
+
+const DEFAULT_SCAN_COOLDOWN_MIN = 240;
+
+function scanCooldownMs() {
+  const raw = process.env.SCAN_COOLDOWN_MIN;
+  const min = raw === undefined || raw === '' ? DEFAULT_SCAN_COOLDOWN_MIN : Number(raw);
+  return Number.isFinite(min) && min > 0 ? min * 60000 : 0;
+}
 
 async function issueQrForClient(clientId) {
   const nonce = newNonce();
@@ -54,6 +64,21 @@ async function scan({ qrToken, partnerId }) {
 
   try {
     return await driver.transaction(async (ctx) => {
+      const cooldownMs = scanCooldownMs();
+      if (cooldownMs) {
+        const last = await ctx.queryOne(
+          `SELECT last_scan_at AS "lastScanAt" FROM loyalty WHERE client_id = ? AND partner_id = ?`,
+          [clientId, partnerId],
+        );
+        const lastScanAt = Number(last?.lastScanAt || 0);
+        if (lastScanAt && Date.now() - lastScanAt < cooldownMs) {
+          return {
+            ok: false,
+            error: 'too_soon',
+            retryAfterMin: Math.ceil((lastScanAt + cooldownMs - Date.now()) / 60000),
+          };
+        }
+      }
       const consumed = await qrRepo.tryConsume({ nonce, partnerId }, ctx);
       if (!consumed) return { ok: false, error: 'already_used' };
       await loyaltyRepo.applyDelta(

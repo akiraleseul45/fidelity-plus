@@ -119,13 +119,19 @@ const redeemSchema = z.object({
 // Partner self-service settings: rewards + (optionally) their category and
 // service mode. category/serviceMode are optional so the reward-only form
 // keeps working unchanged.
-const updateRewardSchema = z.object({
-  rewardThreshold: z.number().int().min(1).max(1000),
-  rewardType: z.enum(['free_meal', 'discount']),
-  rewardValue: z.number().int().min(1).max(100).optional(),
-  category: Category.optional(),
-  serviceMode: ServiceMode.optional(),
-});
+// A discount needs its percentage (audit A-14).
+const updateRewardSchema = z
+  .object({
+    rewardThreshold: z.number().int().min(1).max(1000),
+    rewardType: z.enum(['free_meal', 'discount']),
+    rewardValue: z.number().int().min(1).max(100).optional(),
+    category: Category.optional(),
+    serviceMode: ServiceMode.optional(),
+  })
+  .refine((o) => o.rewardType !== 'discount' || o.rewardValue != null, {
+    message: 'pourcentage de réduction requis',
+    path: ['rewardValue'],
+  });
 
 // ---------- Admin ----------
 const PhoneOpt = z
@@ -161,7 +167,11 @@ const adminPartnerUpdateSchema = z
     rewardValue: z.number().int().min(1).max(100).nullable().optional(),
     status: z.enum(['pending', 'approved', 'suspended']).optional(),
   })
-  .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier');
+  .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier')
+  .refine((o) => !(o.rewardType === 'discount' && o.rewardValue === null), {
+    message: 'pourcentage de réduction requis',
+    path: ['rewardValue'],
+  });
 
 const adminClientUpdateSchema = z
   .object({
@@ -227,7 +237,21 @@ const bookingSettingsSchema = z
     maxAdvanceDays: z.number().int().min(1).max(365).optional(),
     maxPerDay: z.number().int().min(1).max(1000).nullable().optional(),
     defaultCapacity: z.number().int().min(1).max(1000).optional(),
-    timezone: z.string().trim().min(3).max(60).optional(),
+    // Must be an IANA zone Intl understands, e.g. Europe/Paris (audit A-06).
+    timezone: z
+      .string()
+      .trim()
+      .min(3)
+      .max(60)
+      .refine((tz) => {
+        try {
+          new Intl.DateTimeFormat('en-US', { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'fuseau horaire invalide (ex. Europe/Paris)')
+      .optional(),
   })
   .refine((o) => Object.keys(o).length > 0, 'aucun champ à modifier');
 
