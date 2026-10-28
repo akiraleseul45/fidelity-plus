@@ -6,7 +6,6 @@ import { ReportProblemButton } from '../components/ReportProblemButton';
 import { Screen } from '../components/Screen';
 import { RootStackParamList } from '../navigation';
 import { confirm } from '../stores/confirmStore';
-import { useCookieStore } from '../stores/cookieStore';
 import { useApp } from '../store/AppContext';
 import { useThemeStore } from '../stores/themeStore';
 import { colors, radius, spacing, typography } from '../theme/theme';
@@ -26,8 +25,6 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { user, logout, deleteAccount } = useApp();
   const themePref = useThemeStore((s) => s.preference);
   const setThemePref = useThemeStore((s) => s.setPreference);
-  const analytics = useCookieStore((s) => s.analytics);
-  const setAnalytics = useCookieStore((s) => s.setAnalytics);
   const [deleting, setDeleting] = useState(false);
 
   const onLogout = async () => {
@@ -150,20 +147,7 @@ export const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
             <Text style={styles.alwaysOn}>Actif</Text>
           </View>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: analytics }}
-            onPress={() => setAnalytics(!analytics)}
-            style={styles.cookieRow}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cookieName}>Mesure d'audience</Text>
-              <Text style={styles.sub}>Optionnel — nous aide à améliorer l'app.</Text>
-            </View>
-            <View style={[styles.toggle, analytics && styles.toggleOn]}>
-              <View style={[styles.knob, analytics && styles.knobOn]} />
-            </View>
-          </Pressable>
+          <Text style={styles.sub}>Aucun cookie de publicité ni de mesure d'audience.</Text>
         </View>
 
         <View style={styles.section}>
@@ -253,17 +237,6 @@ const styles = StyleSheet.create({
   },
   cookieName: { ...typography.body, color: colors.text, fontWeight: '700' },
   alwaysOn: { ...typography.small, color: colors.textMuted, fontWeight: '700' },
-  toggle: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.border,
-    padding: 3,
-    justifyContent: 'center',
-  },
-  toggleOn: { backgroundColor: colors.primary },
-  knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
-  knobOn: { alignSelf: 'flex-end' },
   dangerHeader: { ...typography.small, color: colors.danger, fontWeight: '700', letterSpacing: 0.5 },
   dangerBtn: { borderWidth: 1, borderColor: colors.danger },
   themeRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },

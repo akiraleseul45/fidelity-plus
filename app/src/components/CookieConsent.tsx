@@ -5,14 +5,13 @@ import { useCookieStore } from '../stores/cookieStore';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
 /**
- * RGPD cookie banner — shown once until the user chooses. Essential cookies
- * (staying logged in) are always on; optional analytics are off by default.
+ * RGPD cookie notice — shown once until dismissed. Only essential cookies
+ * (staying logged in) are used, so there is nothing to opt in to (audit A-15).
  */
 export const CookieConsent: React.FC = () => {
   const decided = useCookieStore((s) => s.decided);
   const load = useCookieStore((s) => s.load);
-  const acceptAll = useCookieStore((s) => s.acceptAll);
-  const rejectOptional = useCookieStore((s) => s.rejectOptional);
+  const acknowledge = useCookieStore((s) => s.acknowledge);
 
   useEffect(() => {
     load();
@@ -25,15 +24,12 @@ export const CookieConsent: React.FC = () => {
       <View style={styles.card}>
         <Text style={styles.title}>🍪 Cookies</Text>
         <Text style={styles.body}>
-          On utilise des cookies essentiels pour te garder connecté (obligatoires), et des cookies de
-          mesure d'audience optionnels. Tu peux changer ton choix à tout moment dans « Mon compte ».
+          On utilise uniquement des cookies essentiels, pour te garder connecté. Aucun cookie de
+          publicité ni de mesure d'audience.
         </Text>
         <View style={styles.row}>
-          <Pressable onPress={rejectOptional} style={({ pressed }) => [styles.btn, styles.secondary, pressed && { opacity: 0.85 }]}>
-            <Text style={styles.secondaryText}>Refuser l'optionnel</Text>
-          </Pressable>
-          <Pressable onPress={acceptAll} style={({ pressed }) => [styles.btn, styles.primary, pressed && { opacity: 0.85 }]}>
-            <Text style={styles.primaryText}>Tout accepter</Text>
+          <Pressable onPress={acknowledge}style={({ pressed }) => [styles.btn, styles.primary, pressed && { opacity: 0.85 }]}>
+            <Text style={styles.primaryText}>J'ai compris</Text>
           </Pressable>
         </View>
       </View>
@@ -71,8 +67,6 @@ const styles = StyleSheet.create({
   body: { ...typography.small, color: colors.textMuted, lineHeight: 18 },
   row: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   btn: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
-  secondary: { backgroundColor: colors.surface },
-  secondaryText: { ...typography.small, color: colors.text, fontWeight: '700' },
   primary: { backgroundColor: colors.primary },
   primaryText: { ...typography.small, color: '#fff', fontWeight: '800' },
 });
