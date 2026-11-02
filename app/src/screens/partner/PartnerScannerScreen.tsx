@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView } from 'expo-camera';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { CameraPermissionGate } from '../../components/CameraPermissionGate';
@@ -37,9 +37,16 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
   const [state, setState] = useState<ScanState>({ kind: 'scanning' });
   const [mode, setMode] = useState<Mode>('add');
 
+  // Set while a scan is being sent, so a QR read twice in a row is sent once.
+  const busy = useRef(false);
+  useEffect(() => {
+    if (state.kind === 'scanning') busy.current = false;
+  }, [state.kind]);
+
   const handleScan = useCallback(
     async ({ data }: { data: string }) => {
-      if (state.kind !== 'scanning') return;
+      if (state.kind !== 'scanning' || busy.current) return;
+      busy.current = true;
       setState({ kind: 'pending' });
 
       // Accept both raw JWT strings AND legacy JSON wrappers (best-effort).
@@ -71,6 +78,17 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
     [state.kind, scanQr, redeemReward, mode],
   );
 
+  // On web, expo-camera's scan loop keeps the onBarcodeScanned it got first,
+  // so a mode switch after the camera started was ignored and "Utiliser une
+  // récompense" still added a point. Hand the camera a stable function that
+  // always calls the latest handler instead.
+  const latestHandleScan = useRef(handleScan);
+  latestHandleScan.current = handleScan;
+  const onBarcodeScanned = useCallback(
+    (result: { data: string }) => latestHandleScan.current(result),
+    [],
+  );
+
   const onLogout = async () => {
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
@@ -93,7 +111,7 @@ export const PartnerScannerScreen: React.FC<Props> = ({ navigation }) => {
             style={StyleSheet.absoluteFill}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={handleScan}
+            onBarcodeScanned={onBarcodeScanned}
           />
         )}
 
